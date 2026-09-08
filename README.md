@@ -426,13 +426,6 @@ To customize the bundled compiler stack, export an editable copy with
 See the [full recipe reference](docs/recipes.md) for custom commands, file copying,
 environment variables, and additional build-system options.
 
-## Contributing
-
-Bug reports, minimal reproductions, and tested recipes are welcome. The
-[contributing guide](CONTRIBUTING.md) explains how to run the tests and report a
-build failure. The [release guide](docs/releasing.md) covers publication and the
-checks required before describing a toolchain bundle as supported.
-
 ## License
 
 The builder is available under the [MIT license](LICENSE), including for commercial
