@@ -4,6 +4,8 @@ include toolchain.yaml toolchain.lock.json
 recursive-include cpp_toolchain_builder *.py *.yaml
 recursive-include examples *.yaml *.json *.cpp CMakeLists.txt
 recursive-include docs *.md
+include docs/media/workflow.gif docs/media/workflow.png
+include docs/media/workflow.cast docs/media/workflow.txt
 recursive-include tests *.py *.cpp CMakeLists.txt
 recursive-include scripts *.py *.sh
 recursive-include .github *.yaml *.yml *.md

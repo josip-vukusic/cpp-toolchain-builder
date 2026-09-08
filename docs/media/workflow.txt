@@ -1,0 +1,51 @@
+# 1 / 4  BUILD THE LIBRARIES
+
+# fmt + spdlog; host compiler; sources already cached.
+
+$ toolchain build --config examples/library.yaml --jobs 4 --quiet --locked
+[1/2] Building fmt 11.2.0
+[2/2] Building spdlog 1.15.3
+built:
+- fmt
+- spdlog
+skipped: []
+prefix: /tmp/cpp-demo-js7fqk2g/install/example-libraries
+
+# 2 / 4  COPY THE FOLDER
+
+$ mkdir -p shared
+
+$ cp -a install/example-libraries shared/toolchain
+
+# Make the original path unavailable to check relocation.
+
+$ mv install/example-libraries install/original-hidden
+
+# 3 / 4  ACTIVATE THE COPY
+
+# Leave the builder environment; keep the host compiler and CMake.
+
+$ deactivate
+
+$ source shared/toolchain/activate
+
+$ command -v toolchain || echo "No builder CLI on PATH"
+No builder CLI on PATH
+
+# 4 / 4  COMPILE AND RUN AN APPLICATION
+
+$ cmake -S examples/hello -B build/hello --log-level=ERROR
+-- Configuring done (0.7s)
+-- Generating done (0.0s)
+-- Build files have been written to: /tmp/cpp-demo-js7fqk2g/build/hello
+
+$ cmake --build build/hello
+[ 50%] Building CXX object CMakeFiles/hello.dir/main.cpp.o
+[100%] Linking CXX executable hello
+[100%] Built target hello
+
+$ ./build/hello/hello
+The answer is 42
+
+# Built and ran using the copied libraries.
+# Same-host relocation; compatible Linux machines required.

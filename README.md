@@ -15,10 +15,25 @@ Built for teams maintaining native **Linux C/C++** development and CI environmen
 You can build a small library bundle with your existing compiler, or build the
 bundled GCC/LLVM preset together with its dependencies.
 
-[Quickstart](#quickstart) · [Sharing](#share-an-installation) ·
+[Demo](#see-it-in-action) · [Quickstart](#quickstart) · [Sharing](#share-an-installation) ·
 [Full toolchain](#build-the-full-toolchain) · [Write a recipe](#create-your-own-recipes) ·
 [Custom library example](#example-add-a-new-xy-lib-library) ·
 [Validation](docs/validation.md)
+
+## See it in action
+
+[![Terminal recording: build fmt and spdlog, copy the installation, activate the copy, and compile an application that prints The answer is 42.](docs/media/workflow.gif)](docs/demo.md)
+
+A real build on **Ubuntu 24.04 x86_64**, using cached source downloads. Pauses are
+shortened for readability. The original installation path is made unavailable
+before compiling with the copy.
+
+**This small library bundle uses the host C++ compiler and CMake.** A receiving
+machine needs a compatible CPU architecture, Linux runtime, and compiler. The
+recording demonstrates relocation on the same machine.
+
+[Read the text transcript](docs/media/workflow.txt) ·
+[Static image, terminal replay, and reproduction steps](docs/demo.md)
 
 
 ## Current scope

@@ -13,6 +13,8 @@ FILES = (
     'README.md', 'LICENSE', 'CONTRIBUTING.md', 'CHANGELOG.md',
     'pyproject.toml', 'MANIFEST.in', '.gitignore', '.gitattributes',
     'toolchain.yaml', 'toolchain.lock.json', 'toolchain_cli.py',
+    'docs/media/workflow.gif', 'docs/media/workflow.png',
+    'docs/media/workflow.cast', 'docs/media/workflow.txt',
 )
 TREES = {
     'cpp_toolchain_builder': {'.py', '.yaml'},
