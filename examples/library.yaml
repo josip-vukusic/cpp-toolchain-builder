@@ -1,0 +1,30 @@
+schema_version: 1
+toolchain:
+  name: example-libraries
+  prefix: ../install/example-libraries
+  work: ../.toolchain-work/example-libraries
+  cache: ../.toolchain-cache
+  output: ../output
+  jobs: 4
+libraries:
+  - name: fmt
+    version: '11.2.0'
+    source:
+      url: https://github.com/fmtlib/fmt/archive/refs/tags/11.2.0.tar.gz
+      filename: fmt-11.2.0.tar.gz
+      sha256: bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af
+    build:
+      system: cmake
+      options: [-DFMT_TEST=OFF]
+    artifacts: [include/fmt/format.h, lib/libfmt.a]
+  - name: spdlog
+    version: '1.15.3'
+    source:
+      url: https://github.com/gabime/spdlog/archive/refs/tags/v1.15.3.tar.gz
+      filename: spdlog-1.15.3.tar.gz
+      sha256: 15a04e69c222eb6c01094b5c7ff8a249b36bb22788d72519646fb85feb267e67
+    depends_on: [fmt]
+    build:
+      system: cmake
+      options: [-DSPDLOG_FMT_EXTERNAL=ON, -DSPDLOG_BUILD_TESTS=OFF, -DSPDLOG_BUILD_EXAMPLE=OFF]
+    artifacts: [include/spdlog/spdlog.h, lib/libspdlog.a]

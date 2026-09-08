@@ -1,0 +1,66 @@
+name: Test and package
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install host tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake zsh
+      - name: Install builder and packaging tools
+        run: python -m pip install . build
+      - name: Test builder and relocated consumers
+        run: python -m unittest discover -s tests -v
+      - name: Validate recipes and preview the full preset
+        run: |
+          toolchain recipes validate
+          toolchain plan --json > /tmp/toolchain-plan.json
+      - name: Build source and wheel distributions
+        run: python -m build
+      - name: Test the installed wheel outside the checkout
+        run: python scripts/check_wheel.py dist
+      - name: Upload Python distributions
+        if: matrix.python == '3.12'
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
+
+  example:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+      - run: python -m pip install .
+      - name: Build and verify the documented library bundle
+        run: |
+          toolchain build --config examples/library.yaml --locked --jobs 2 --quiet
+          toolchain inspect verify --prefix install/example-libraries --smoke
+          toolchain archive --prefix install/example-libraries --output output/example-libraries.tar.gz
+      - name: Relocate and consume with networking disabled
+        run: sudo unshare --net bash scripts/check_example.sh --isolated

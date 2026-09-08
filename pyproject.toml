@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cpp-toolchain-builder"
+version = "1.0.0"
+description = "Build, archive, and activate versioned Linux C/C++ development environments"
+requires-python = ">=3.12"
+readme = "README.md"
+dependencies = ["PyYAML>=6.0"]
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["cpp", "toolchain", "gcc", "clang", "llvm", "cmake", "sdk"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+]
+
+[project.scripts]
+toolchain = "cpp_toolchain_builder.cli:main"
+
+[tool.setuptools]
+py-modules = ["toolchain_cli"]
+
+[tool.setuptools.packages.find]
+include = ["cpp_toolchain_builder*"]
+
+[tool.setuptools.package-data]
+cpp_toolchain_builder = ["recipes/*.yaml"]

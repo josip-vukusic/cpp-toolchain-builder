@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a build, activation, inspection, or packaging problem.
+title: ""
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Command and minimal recipe
+      description: Include the exact command and a minimal YAML definition. Remove credentials and private source URLs.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include toolchain --version, Linux distribution, architecture, Python version, compiler, and standard-library selection.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Include the error and the relevant end of the recipe log. For relocation problems, include the original and destination paths.
+      render: text

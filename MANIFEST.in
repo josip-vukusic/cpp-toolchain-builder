@@ -1,0 +1,16 @@
+include LICENSE README.md CONTRIBUTING.md CHANGELOG.md
+include .gitignore .gitattributes
+include toolchain.yaml toolchain.lock.json
+recursive-include cpp_toolchain_builder *.py *.yaml
+recursive-include examples *.yaml *.json *.cpp CMakeLists.txt
+recursive-include docs *.md
+recursive-include tests *.py *.cpp CMakeLists.txt
+recursive-include scripts *.py *.sh
+recursive-include .github *.yaml *.yml *.md
+global-exclude __pycache__ *.py[cod] *.lock.json.lock
+prune build
+prune dist
+prune install
+prune output
+prune .toolchain-cache
+prune .toolchain-work

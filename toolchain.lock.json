@@ -1,0 +1,329 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "abseil-cpp": {
+      "git_commit": "4447c7562e3bc702ade25105912dce503f0c4010",
+      "identity": "d4560bd53927e25a5d94c3fd3e929af784cb3c9107508bdfa1d739a9a3ca61fd",
+      "source": {
+        "git": "https://github.com/abseil/abseil-cpp.git",
+        "ref": "20240722.0"
+      }
+    },
+    "antlr4": {
+      "git_commit": "cc82115a4e7f53d71d9d905caa2c2dfa4da58899",
+      "identity": "5425327ef74fa29d68b5a8cf90e1d52c366bfe1a2cae6796d765a7adf66dbbf5",
+      "source": {
+        "git": "https://github.com/antlr/antlr4",
+        "ref": "4.13.2"
+      }
+    },
+    "arrow": {
+      "git_commit": "ee4d09ebef61c663c1efbfa4c18e518a03b798be",
+      "identity": "1048c2b8151d11cb8a14a6f9b4a39bbf8c7c24c1a6ca1858c5a9d4e9e4f1a290",
+      "source": {
+        "git": "https://github.com/apache/arrow.git",
+        "ref": "apache-arrow-21.0.0",
+        "submodules": true
+      }
+    },
+    "aws-crt-cpp": {
+      "git_commit": "8bd72f69b9dfa475c7727cd98e98a9b806acc07a",
+      "identity": "ef42ef7ff2a94efd2213f84f61ade09582f8c95c7b85e49fac6850451acf8b08",
+      "source": {
+        "git": "https://github.com/awslabs/aws-crt-cpp.git",
+        "ref": "v0.33.0",
+        "submodules": true
+      }
+    },
+    "aws-iot-device-sdk-cpp-v2": {
+      "git_commit": "45e6945429bbfa363459829ba54db58a98969bad",
+      "identity": "1908f4292d7efd01bfdff61b87f27665298313653f1583de2152835c5b99262a",
+      "source": {
+        "git": "https://github.com/aws/aws-iot-device-sdk-cpp-v2.git",
+        "ref": "v1.42.0",
+        "submodules": true
+      }
+    },
+    "aws-sdk-cpp": {
+      "git_commit": "b1e0ec8825f58ad79c86c778385a32d0fe863154",
+      "identity": "455ca0639806da6efa9ce98fe115f93582b29484c2b9a1c05d527d067b6fc18f",
+      "source": {
+        "git": "https://github.com/aws/aws-sdk-cpp",
+        "ref": "1.11.642",
+        "submodules": true
+      }
+    },
+    "bazel": {
+      "identity": "ea7b6168a1a2124c399b3fa7afe3413234d54f101ef1c501f39050aa9d211bba",
+      "sha256": "3453736dc067a9b923f3066aad378282cd864830d9ad135a45ac9c1ebc47bbae",
+      "source": {
+        "filename": "bazel-8.4.1-linux-x86_64",
+        "unpack": false,
+        "url": "https://github.com/bazelbuild/bazel/releases/download/8.4.1/bazel-8.4.1-linux-x86_64"
+      }
+    },
+    "benchmark": {
+      "git_commit": "eddb0241389718a23a42db6af5f0164b6e0139af",
+      "identity": "dabe6c0d3097242e985f4f4ec461c2969ba7cef8533784aa88661f115fde9527",
+      "source": {
+        "git": "https://github.com/google/benchmark.git",
+        "ref": "v1.9.4"
+      }
+    },
+    "binutils": {
+      "identity": "c291275b70bd01b17fa7c831993c12de0735a9bc077cafa9f140cfb71fff3d36",
+      "sha256": "8a3eb4b10e7053312790f21ee1a38f7e2bbd6f4096abb590d3429e5119592d96",
+      "source": {
+        "filename": "binutils-2.45.tar.gz",
+        "sha256": "8a3eb4b10e7053312790f21ee1a38f7e2bbd6f4096abb590d3429e5119592d96",
+        "url": "https://ftpmirror.gnu.org/gnu/binutils/binutils-2.45.tar.gz"
+      }
+    },
+    "boost": {
+      "identity": "2c8b46edce85beeb1eebe321346959874649bdac538395240d30777123aadffe",
+      "sha256": "9de758db755e8330a01d995b0a24d09798048400ac25c03fc5ea9be364b13c93",
+      "source": {
+        "filename": "boost_1_89_0.tar.gz",
+        "sha256": "9de758db755e8330a01d995b0a24d09798048400ac25c03fc5ea9be364b13c93",
+        "url": "https://archives.boost.io/release/1.89.0/source/boost_1_89_0.tar.gz"
+      }
+    },
+    "bzip2": {
+      "identity": "377c1948bc6b220daaf97655225517b7abd55a5f9567fa33f8effcb831d1c087",
+      "sha256": "a2848f34fcd5d6cf47def00461fcb528a0484d8edef8208d6d2e2909dc61d9cd",
+      "source": {
+        "filename": "bzip2-1.0.6.tar.gz",
+        "sha256": "a2848f34fcd5d6cf47def00461fcb528a0484d8edef8208d6d2e2909dc61d9cd",
+        "url": "https://sourceware.org/pub/bzip2/bzip2-1.0.6.tar.gz"
+      }
+    },
+    "cel-cpp": {
+      "git_commit": "e78965a8c335d1c7445fcf95e250181a78d4deff",
+      "identity": "3ec6c03860914259857ab8f21672eac1b5a9ea01a5c5b1408e84a585e9d29697",
+      "source": {
+        "git": "https://github.com/google/cel-cpp.git",
+        "ref": "v0.13.0",
+        "submodules": true
+      }
+    },
+    "cel-spec": {
+      "git_commit": "9f069b3ee58b02d6f6736c5ebd6587075c1a1b22",
+      "identity": "a467571e738288240d1ae5dc5861cc97e7d491f0ce5d60b35d72f5cf41a90ec7",
+      "source": {
+        "git": "https://github.com/google/cel-spec.git",
+        "ref": "v0.24.0"
+      }
+    },
+    "cmake": {
+      "identity": "fd5d2ca31e6ce4ffb0f662e4664764a050f7071eba88564590522df1c3fcc873",
+      "sha256": "b29f6f19733aa224b7763507a108a427ed48c688e1faf22b29c44e1c30549282",
+      "source": {
+        "filename": "cmake-4.1.1.tar.gz",
+        "sha256": "b29f6f19733aa224b7763507a108a427ed48c688e1faf22b29c44e1c30549282",
+        "url": "https://github.com/Kitware/CMake/releases/download/v4.1.1/cmake-4.1.1.tar.gz"
+      }
+    },
+    "concurrentqueue": {
+      "identity": "d6e3c8e6964f48a37b9ed6aaa6bfc29d1a811524a6bd01905f59d4c4f36e2485",
+      "sha256": "524bc2de581ecc95e632ee6aac2676d6a1029a692a9c1b4a32e4a80608abad5e",
+      "source": {
+        "filename": "concurrentqueue-1.0.4.h",
+        "sha256": "524bc2de581ecc95e632ee6aac2676d6a1029a692a9c1b4a32e4a80608abad5e",
+        "url": "https://raw.githubusercontent.com/cameron314/concurrentqueue/v1.0.4/concurrentqueue.h"
+      }
+    },
+    "cppcheck": {
+      "identity": "750adb23f0157daa88e408b3cbf1e65cbd897b9b9297cc014334e95ff69e2d73",
+      "sha256": "dc74e300ac59f2ef9f9c05c21d48ae4c8dd1ce17f08914dd30c738ff482e748f",
+      "source": {
+        "filename": "cppcheck-2.18.0.tar.gz",
+        "sha256": "dc74e300ac59f2ef9f9c05c21d48ae4c8dd1ce17f08914dd30c738ff482e748f",
+        "url": "https://github.com/danmar/cppcheck/archive/refs/tags/2.18.0.tar.gz"
+      }
+    },
+    "fmt": {
+      "identity": "a67ecf599090dcba3c45d81f060eaaaa8113a93c74db8367b43a7352894351c2",
+      "sha256": "bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af",
+      "source": {
+        "filename": "fmt-11.2.0.tar.gz",
+        "sha256": "bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af",
+        "url": "https://github.com/fmtlib/fmt/archive/refs/tags/11.2.0.tar.gz"
+      }
+    },
+    "gcc": {
+      "identity": "76757f340f2c8ff9fd1e7006bd23289eaa79ccd7e9661da42dd2f62355419432",
+      "sha256": "7294d65cc1a0558cb815af0ca8c7763d86f7a31199794ede3f630c0d1b0a5723",
+      "source": {
+        "filename": "gcc-15.2.0.tar.gz",
+        "sha256": "7294d65cc1a0558cb815af0ca8c7763d86f7a31199794ede3f630c0d1b0a5723",
+        "url": "https://ftpmirror.gnu.org/gnu/gcc/gcc-15.2.0/gcc-15.2.0.tar.gz"
+      }
+    },
+    "gdb": {
+      "identity": "fbae8c4eb99f0728f9bfb07ebbf74e2d082888cf6356f79467c8592b013ac17c",
+      "sha256": "ff2cfff60546a3851561ddac7c012a7c184bb95b66286ae332d16880f77247c9",
+      "source": {
+        "filename": "gdb-16.1.tar.gz",
+        "sha256": "ff2cfff60546a3851561ddac7c012a7c184bb95b66286ae332d16880f77247c9",
+        "url": "https://ftpmirror.gnu.org/gnu/gdb/gdb-16.1.tar.gz"
+      }
+    },
+    "gflags": {
+      "identity": "f6ff36bb66efdd62e0c2e48d0fb469c132b77ce28a105534d76550f7273c832e",
+      "sha256": "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
+      "source": {
+        "filename": "gflags-2.2.2.tar.gz",
+        "sha256": "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
+        "url": "https://github.com/gflags/gflags/archive/refs/tags/v2.2.2.tar.gz"
+      }
+    },
+    "googleapis": {
+      "git_commit": "a68d4433fa8f0cf72710a60cc09dec096db0fcee",
+      "identity": "0577f70aa9820f5161e04bbc3fe81ff644c6933e87e4312a1d2d74c3f22c975b",
+      "source": {
+        "git": "https://github.com/googleapis/googleapis.git",
+        "ref": "master"
+      }
+    },
+    "googletest": {
+      "git_commit": "52eb8108c5bdec04579160ae17225d66034bd723",
+      "identity": "fcf9c0695eb2502640d2b6b9270350403a30e508400868efa8dbc6842ebded86",
+      "source": {
+        "git": "https://github.com/google/googletest.git",
+        "ref": "v1.17.0"
+      }
+    },
+    "libmodbus": {
+      "identity": "dc04ca76dd554e317191961f59c0b0630576a98e1b2a0ad589d0be90ea253e40",
+      "sha256": "a7a2c4f6e7e3c9bd49a574e9f30f6f87b8f162a58c7a67cb1c75470991b7680a",
+      "source": {
+        "filename": "libmodbus-3.1.11.tar.gz",
+        "sha256": "a7a2c4f6e7e3c9bd49a574e9f30f6f87b8f162a58c7a67cb1c75470991b7680a",
+        "url": "https://github.com/stephane/libmodbus/releases/download/v3.1.11/libmodbus-3.1.11.tar.gz"
+      }
+    },
+    "llvm": {
+      "git_commit": "3623fe661ae35c6c80ac221f14d85be76aa870f1",
+      "identity": "de86479ac0226bc5faaf16e6f35c02ca4f4d6416862b7d7e9d7cbb81fa77f3a3",
+      "source": {
+        "git": "https://github.com/llvm/llvm-project.git",
+        "ref": "llvmorg-21.1.0",
+        "submodules": true
+      }
+    },
+    "lz4": {
+      "identity": "840b57a14d595a6b127e8800886e7623033fb22c87fb2a9bc148d5d0f85aaf5e",
+      "sha256": "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b",
+      "source": {
+        "filename": "lz4-1.10.0.tar.gz",
+        "sha256": "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b",
+        "url": "https://github.com/lz4/lz4/archive/v1.10.0.tar.gz"
+      }
+    },
+    "nlohmann-json": {
+      "identity": "8e8f37489cf56fef271b0d7aeba42fbcb6c17d563085f7b68ad4ad37e7c7a0b1",
+      "sha256": "a22461d13119ac5c78f205d3df1db13403e58ce1bb1794edc9313677313f4a9d",
+      "source": {
+        "filename": "nlohmann_json-3.11.3-include.zip",
+        "sha256": "a22461d13119ac5c78f205d3df1db13403e58ce1bb1794edc9313677313f4a9d",
+        "strip_root": false,
+        "url": "https://github.com/nlohmann/json/releases/download/v3.11.3/include.zip"
+      }
+    },
+    "openssl": {
+      "identity": "a553277c94b3bff2995dd096cf928b3b89c1ef200afc301dbcd24599555614de",
+      "sha256": "777cd596284c883375a2a7a11bf5d2786fc5413255efab20c50d6ffe6d020b7e",
+      "source": {
+        "filename": "openssl-3.3.1.tar.gz",
+        "sha256": "777cd596284c883375a2a7a11bf5d2786fc5413255efab20c50d6ffe6d020b7e",
+        "url": "https://www.openssl.org/source/openssl-3.3.1.tar.gz"
+      }
+    },
+    "pahole-gdb": {
+      "identity": "38c6432588c6c64920dbe38b271c72b7114843667da9e512804dd87aafb897a3",
+      "sha256": "7abd613e4dfabeb46d8ef312ef85b280808a369301db21cb7c2b76a6660b53de",
+      "source": {
+        "filename": "pahole-gdb-master.zip",
+        "sha256": "7abd613e4dfabeb46d8ef312ef85b280808a369301db21cb7c2b76a6660b53de",
+        "url": "https://github.com/PhilArmstrong/pahole-gdb/archive/master.zip"
+      }
+    },
+    "protobuf": {
+      "git_commit": "74211c0dfc2777318ab53c2cd2c317a2ef9012de",
+      "identity": "5269aa17ca35c28cc05a59243e4faedae5cd1b09bca6f988e74b84f8598525cf",
+      "source": {
+        "git": "https://github.com/protocolbuffers/protobuf.git",
+        "ref": "v6.31.1",
+        "submodules": true
+      }
+    },
+    "protovalidate-cc": {
+      "git_commit": "2660b7e5d3e3cad245b17aa0aaad6ff720259fa3",
+      "identity": "eb98ece89e74b511c00d378b9b61d1d7bd6e54020bb555872477d60edad8542e",
+      "source": {
+        "git": "https://github.com/bufbuild/protovalidate-cc.git",
+        "ref": "v1.0.0"
+      }
+    },
+    "re2": {
+      "git_commit": "6dcd83d60f7944926bfd308cc13979fc53dd69ca",
+      "identity": "dfc70879f0d2b23116df05509d00f5fa736b17951c61870499f12b070ca98e76",
+      "source": {
+        "git": "https://github.com/google/re2.git",
+        "ref": "2024-07-02"
+      }
+    },
+    "spdlog": {
+      "identity": "368e4a4d9fa8c1bf075507e7d74319fa277e1476949f7fa0529197a7920244fe",
+      "sha256": "15a04e69c222eb6c01094b5c7ff8a249b36bb22788d72519646fb85feb267e67",
+      "source": {
+        "filename": "spdlog-1.15.3.tar.gz",
+        "sha256": "15a04e69c222eb6c01094b5c7ff8a249b36bb22788d72519646fb85feb267e67",
+        "url": "https://github.com/gabime/spdlog/archive/refs/tags/v1.15.3.tar.gz"
+      }
+    },
+    "swig": {
+      "identity": "b4c17c073f20e5d616f10447c0b91a25a310889b19fc15912571e010f09240b7",
+      "sha256": "c6091ef5f2e397945a66899bf6859845f35ef603340e79c086d7f2ecf348678c",
+      "source": {
+        "filename": "swig-4.3.1.tar.gz",
+        "sha256": "c6091ef5f2e397945a66899bf6859845f35ef603340e79c086d7f2ecf348678c",
+        "url": "https://github.com/swig/swig/archive/refs/tags/v4.3.1.tar.gz"
+      }
+    },
+    "tomlplusplus": {
+      "identity": "540f38d4b594e9ad810a5b299f73f60203404d143f9334a3dbd7e86cd36b6830",
+      "sha256": "6b5172ad4dd6519aec67b919181fa7a38a2234131e5b2afa232dfe444819783e",
+      "source": {
+        "filename": "tomlplusplus-3.4.0.hpp",
+        "url": "https://raw.githubusercontent.com/marzer/tomlplusplus/v3.4.0/toml.hpp"
+      }
+    },
+    "xz": {
+      "identity": "646a3b3f759b01979848baa4a0174c8eff1880e222400bec488b6adc19aa14b5",
+      "sha256": "b523c5e47d1490338c5121bdf2a6ecca2bcf0dce05a83ad40a830029cbe6679b",
+      "source": {
+        "filename": "xz-5.8.0.tar.gz",
+        "sha256": "b523c5e47d1490338c5121bdf2a6ecca2bcf0dce05a83ad40a830029cbe6679b",
+        "url": "https://tukaani.org/xz/xz-5.8.0.tar.gz"
+      }
+    },
+    "zlib": {
+      "identity": "f50c9f6aa45037808f62595ead7f6ae709806132c31fb1b531567f75ab508065",
+      "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+      "source": {
+        "filename": "zlib-1.3.1.tar.gz",
+        "url": "https://zlib.net/fossils/zlib-1.3.1.tar.gz"
+      }
+    },
+    "zstd": {
+      "identity": "61f591ae47d1bf80e97e6958a952026930179559b0d2218cede3a11a965a257a",
+      "sha256": "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+      "source": {
+        "filename": "zstd-1.5.7.tar.gz",
+        "sha256": "eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3",
+        "url": "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz"
+      }
+    }
+  }
+}

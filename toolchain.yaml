@@ -1,0 +1,16 @@
+# Standalone reproduction of the POC; no dependency on the old toolchain/ folder.
+schema_version: 1
+toolchain:
+  name: toolchain-v1
+  version: '1'
+  prefix: ./install/toolchain-v1
+  work: .toolchain-work
+  cache: .toolchain-cache
+  output: output
+  compiler: toolchain
+  stdlib: libstdc++
+  jobs: 8
+  platform: linux-x86_64
+recipe_files:
+- builtin:poc
+libraries: []

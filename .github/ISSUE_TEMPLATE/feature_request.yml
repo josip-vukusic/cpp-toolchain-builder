@@ -1,0 +1,15 @@
+name: Feature or recipe request
+description: Suggest an improvement or a recipe backed by a concrete use case.
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What are you trying to do?
+      description: Describe your workflow and where the current tool gets in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: For recipes, include the upstream project, version, platform, and any build instructions you have tested.
