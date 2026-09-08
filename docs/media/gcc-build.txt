@@ -1,0 +1,19 @@
+# Build a GCC SDK from cached sources. Completed components can resume.
+$ toolchain build --config examples/gcc-toolchain.yaml --jobs 8 --quiet --locked
+[1/6] binutils 2.45: up to date
+[2/6] Building gcc 15.2.0
+[3/6] Building make 4.4.1
+[4/6] Building cmake 4.1.1
+[5/6] Building fmt 11.2.0
+[6/6] Building spdlog 1.15.3
+built:
+- gcc
+- make
+- cmake
+- fmt
+- spdlog
+skipped:
+- binutils
+prefix: $PROJECT/install/gcc-sdk
+
+Build exit code: 0; elapsed: 3321.4 seconds.

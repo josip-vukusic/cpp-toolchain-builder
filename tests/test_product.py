@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import yaml
 
-from cpp_toolchain_builder.cli import main
+from cpp_toolchain_builder.cli import doctor, main
 from cpp_toolchain_builder.config import load_config, resolve, save_yaml
 from cpp_toolchain_builder.engine import Builder, Runner
 from cpp_toolchain_builder.inspection import activation, archive, info, inventory, smoke, verify
@@ -56,6 +56,39 @@ class Workspace(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
             code = main(list(args))
         return code, out.getvalue(), err.getvalue()
+
+
+class DoctorTests(Workspace):
+    def test_small_sdk_checks_declared_tools_without_full_preset_packages(self):
+        self.recipe.update(stage='core', requires=['missing-bootstrap-tool'])
+        self.write([self.recipe])
+        with patch('cpp_toolchain_builder.cli.shutil.which', side_effect=lambda name, **kw:
+                   None if name == 'missing-bootstrap-tool' else '/usr/bin/' + name):
+            result = doctor(self.builder())
+        self.assertEqual(result['problems'], ['Missing host executable: missing-bootstrap-tool'])
+        self.assertNotIn('gawk', result['tools'])
+        self.assertIsNone(result['dependency_install_hint'])
+
+    def test_cmake_can_be_built_before_the_first_library(self):
+        provider = copy.deepcopy(self.recipe)
+        provider.update(name='cmake', stage='core', requires=['g++'], artifacts=['bin/cmake'])
+        consumer = copy.deepcopy(self.recipe)
+        consumer.update(depends_on=['cmake'], build={'system': 'cmake'})
+        self.write([provider, consumer])
+        with patch('cpp_toolchain_builder.cli.shutil.which', side_effect=lambda name, **kw:
+                   None if name == 'cmake' else '/usr/bin/' + name):
+            result = doctor(self.builder())
+        self.assertTrue(result['passed'], result['problems'])
+        self.assertNotIn('cmake', result['tools'])
+
+    def test_cmake_cannot_bootstrap_itself_with_cmake(self):
+        self.recipe.update(name='cmake', stage='core', requires=[],
+                           build={'system': 'cmake'}, artifacts=['bin/cmake'])
+        self.write([self.recipe])
+        with patch('cpp_toolchain_builder.cli.shutil.which', side_effect=lambda name, **kw:
+                   None if name == 'cmake' else '/usr/bin/' + name):
+            result = doctor(self.builder())
+        self.assertIn('Missing host executable: cmake', result['problems'])
 
 
 class ConfigurationTests(Workspace):

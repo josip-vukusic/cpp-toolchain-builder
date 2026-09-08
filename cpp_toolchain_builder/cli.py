@@ -39,18 +39,29 @@ def make_builder(args, config=None):
 
 def doctor(builder, requested=None):
     names = builder.selected(requested)
-    core = any(builder.config.recipes[name].get('stage') == 'core' for name in names)
+    recipes = [builder.config.recipes[name] for name in names]
+    core_recipes = [recipe for recipe in recipes if recipe.get('stage') == 'core']
+    # Preserve the full preset's broad checks, while allowing small SDK recipes
+    # to declare their actual bootstrap tools through the existing requires field.
+    legacy_core = any('requires' not in recipe for recipe in core_recipes)
     problems = []
     if platform.system() != 'Linux':
         problems.append('The builder currently supports Linux hosts')
     if builder.config.settings.get('platform') == 'linux-x86_64' and platform.machine() not in {'x86_64', 'amd64'}:
         problems.append('The POC preset targets native Linux x86_64; it is not a cross compiler')
     commands = {'bash', 'make'}
+    cmake_available = False
+    needs_host_cmake = False
+    for recipe in recipes:
+        if recipe['build']['system'] == 'cmake' and not cmake_available:
+            needs_host_cmake = True
+        if 'bin/cmake' in recipe.get('artifacts', []):
+            cmake_available = True
     if any('git' in builder.config.recipes[name]['source'] for name in names):
         commands.add('git')
-    if core:
+    if legacy_core:
         commands.update({'gcc', 'g++', 'bison', 'flex', 'makeinfo', 'autoconf', 'automake', 'libtoolize', 'pkg-config', 'perl', 'wget', 'patch', 'm4'})
-    elif any(builder.config.recipes[name]['build']['system'] == 'cmake' for name in names):
+    elif needs_host_cmake:
         commands.add('cmake')
     for name in names:
         commands.update(builder.config.recipes[name].get('requires', []))
@@ -62,7 +73,7 @@ def doctor(builder, requested=None):
             if not os.access(builder.compiler_prefix / 'bin' / command, os.X_OK):
                 problems.append(f'External compiler prefix is missing bin/{command}')
     missing = []
-    if core and Path('/etc/debian_version').exists() and shutil.which('dpkg-query'):
+    if legacy_core and Path('/etc/debian_version').exists() and shutil.which('dpkg-query'):
         for package in UBUNTU_PACKAGES:
             result = subprocess.run(['dpkg-query', '-W', '-f=${Status}', package], capture_output=True, text=True)
             if result.returncode or result.stdout.strip() != 'install ok installed':

@@ -1,0 +1,162 @@
+# Native C/C++ SDK: build the tools once, then distribute the installation folder.
+schema_version: 1
+toolchain:
+  name: gcc-sdk
+  prefix: ../install/gcc-sdk
+  work: ../.toolchain-work/gcc-sdk
+  cache: ../.toolchain-cache
+  output: ../output
+  jobs: 8
+  platform: linux-x86_64
+  stdlib: libstdc++
+libraries:
+  - name: binutils
+    version: '2.45'
+    stage: core
+    requires: [gcc, g++, make, flex, bison, makeinfo]
+    source:
+      url: https://ftpmirror.gnu.org/gnu/binutils/binutils-2.45.tar.gz
+      filename: binutils-2.45.tar.gz
+      sha256: 8a3eb4b10e7053312790f21ee1a38f7e2bbd6f4096abb590d3429e5119592d96
+    build:
+      system: autotools
+      options:
+        - --build=x86_64-linux-gnu
+        - --host=x86_64-linux-gnu
+        - --enable-gold
+        - --enable-plugins
+        - --enable-deterministic-archives
+        - --disable-shared
+        - --disable-nls
+        - --disable-gprofng
+        - --disable-werror
+    environment:
+      CC: /usr/bin/gcc
+      CXX: /usr/bin/g++
+      CFLAGS: -O2
+      CXXFLAGS: -O2
+    artifacts: [bin/as, bin/ld, bin/ar, bin/ranlib]
+
+  - name: gcc
+    version: '15.2.0'
+    stage: core
+    depends_on: [binutils]
+    requires: [gcc, g++, make, flex, bison, awk, makeinfo, perl, curl]
+    source:
+      url: https://ftpmirror.gnu.org/gnu/gcc/gcc-15.2.0/gcc-15.2.0.tar.gz
+      filename: gcc-15.2.0.tar.gz
+      sha256: 7294d65cc1a0558cb815af0ca8c7763d86f7a31199794ede3f630c0d1b0a5723
+    build:
+      system: autotools
+      prepare:
+        - shell: |
+            mkdir -p "$TC_CACHE/imports"
+            for archive in gmp-6.2.1.tar.bz2 mpfr-4.1.0.tar.bz2 mpc-1.2.1.tar.gz isl-0.24.tar.bz2 gettext-0.22.tar.gz; do
+              if [ ! -f "$TC_CACHE/imports/$archive" ]; then
+                curl -fL "https://gcc.gnu.org/pub/gcc/infrastructure/$archive" -o "$TC_CACHE/imports/$archive.part"
+                mv "$TC_CACHE/imports/$archive.part" "$TC_CACHE/imports/$archive"
+              fi
+              cp "$TC_CACHE/imports/$archive" .
+            done
+            ./contrib/download_prerequisites --verify
+      options:
+        - --build=x86_64-linux-gnu
+        - --host=x86_64-linux-gnu
+        - --target=x86_64-linux-gnu
+        - --enable-languages=c,c++
+        - --enable-bootstrap
+        - --enable-checking=release
+        - --enable-shared
+        - --enable-threads=posix
+        - --enable-default-pie
+        - --enable-lto
+        - --with-tune=generic
+        - --with-system-zlib
+        - --disable-multilib
+        - --disable-nls
+        - --disable-werror
+    environment:
+      CC: /usr/bin/gcc
+      CXX: /usr/bin/g++
+      CONFIG_SHELL: /bin/bash
+    artifacts: [bin/gcc, bin/g++, lib64/libstdc++.so.6, lib64/libgcc_s.so.1]
+
+  - name: make
+    version: '4.4.1'
+    stage: core
+    depends_on: [gcc]
+    requires: [make]
+    source:
+      url: https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz
+      filename: make-4.4.1.tar.gz
+      sha256: dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3
+    build:
+      system: autotools
+      options: [--without-guile, --disable-nls]
+    environment:
+      CC: ${prefix}/bin/gcc
+      CXX: ${prefix}/bin/g++
+    artifacts: [bin/make]
+
+  - name: cmake
+    version: '4.1.1'
+    stage: core
+    depends_on: [make]
+    requires: [make]
+    source:
+      url: https://github.com/Kitware/CMake/releases/download/v4.1.1/cmake-4.1.1.tar.gz
+      filename: cmake-4.1.1.tar.gz
+      sha256: b29f6f19733aa224b7763507a108a427ed48c688e1faf22b29c44e1c30549282
+    build:
+      system: custom
+      commands:
+        - run:
+            - ${source}/bootstrap
+            - --prefix=${prefix}
+            - --parallel=${jobs}
+            - --
+            - -DCMAKE_BUILD_TYPE=Release
+            - -DBUILD_TESTING=OFF
+            - -DBUILD_CursesDialog=OFF
+            - -DCMAKE_USE_OPENSSL=ON
+            - -DOPENSSL_USE_STATIC_LIBS=TRUE
+            - -DCMAKE_SKIP_RPATH=ON
+          cwd: ${build}
+        - run: [make, '-j${jobs}']
+          cwd: ${build}
+        - run: [make, install]
+          cwd: ${build}
+    environment:
+      CC: ${prefix}/bin/gcc
+      CXX: ${prefix}/bin/g++
+    artifacts: [bin/cmake, bin/ctest, bin/cpack]
+
+  - name: fmt
+    version: '11.2.0'
+    depends_on: [cmake]
+    source:
+      url: https://github.com/fmtlib/fmt/archive/refs/tags/11.2.0.tar.gz
+      filename: fmt-11.2.0.tar.gz
+      sha256: bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af
+    build:
+      system: cmake
+      options: [-DFMT_TEST=OFF]
+    environment:
+      CC: ${prefix}/bin/gcc
+      CXX: ${prefix}/bin/g++
+    artifacts: [include/fmt/format.h, lib/libfmt.a]
+
+  - name: spdlog
+    version: '1.15.3'
+    depends_on: [fmt]
+    source:
+      url: https://github.com/gabime/spdlog/archive/refs/tags/v1.15.3.tar.gz
+      filename: spdlog-1.15.3.tar.gz
+      sha256: 15a04e69c222eb6c01094b5c7ff8a249b36bb22788d72519646fb85feb267e67
+    build:
+      system: cmake
+      options: [-DSPDLOG_FMT_EXTERNAL=ON, -DSPDLOG_BUILD_TESTS=OFF, -DSPDLOG_BUILD_EXAMPLE=OFF]
+    environment:
+      CC: ${prefix}/bin/gcc
+      CXX: ${prefix}/bin/g++
+    artifacts: [include/spdlog/spdlog.h, lib/libspdlog.a]

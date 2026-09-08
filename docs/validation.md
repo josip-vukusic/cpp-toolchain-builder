@@ -30,6 +30,36 @@ with the current builder-generated activation script. Hiding the original path
 was confined to a temporary mount namespace; the original SDK was unchanged.
 Only the tested compiler and example workflow are covered by this result.
 
+### Fresh GCC SDK
+
+The [six-component GCC example](gcc-toolchain.md) was subsequently built from
+source on the same host, using eight jobs and a prefilled source cache. Networking
+was disabled for the recorded build. This SDK contains GCC 15.2.0, CMake 4.1.1,
+Make 4.4.1, binutils 2.45, fmt 11.2.0, and spdlog 1.15.3.
+
+| Check | Observed result |
+| --- | --- |
+| Suite including SDK prerequisite regressions | 48 tests passed |
+| Fresh GCC build | Three-stage bootstrap and stage comparison passed |
+| Compiler selection during the remaining builds | Make, CMake, fmt, and spdlog built with the new GCC |
+| Managed installation verification | All six components and C++20 fmt/spdlog compile/link/run passed |
+| Copied SDK with no host build tools on PATH | GCC, CMake, Make, assembler, linker, and GCC helpers resolved inside the copy |
+| Copied SDK consumer | CMake found fmt/spdlog inside the copy; application compiled and printed `The answer is 42` |
+
+The copied-SDK check hid the original installation, `/usr/lib/gcc`, and
+`/usr/include/c++` in a private mount namespace and disabled networking. It kept
+the system C library development files available. GCC's helper uses system zlib;
+CMake resolves the SDK's own C++ runtime after activation. This remains a
+same-host relocation check, not a test on another distribution.
+
+The successful recorded run took **55 minutes 21 seconds**, including GCC's
+**49 minutes 34 seconds** and CMake's **5 minutes 24 seconds**. Binutils had
+completed in **62 seconds** in the preceding run, before an isolated-environment
+tar ownership issue was corrected. The installed SDK occupies about **1.83 GiB**.
+These are measured build times with cached sources, not download-inclusive
+estimates. [Recordings and reproduction instructions](gcc-demo.md) retain the
+actual commands and timing. GCC's complete upstream test suite was not run.
+
 Run the self-contained distribution regressions with:
 
 ```bash

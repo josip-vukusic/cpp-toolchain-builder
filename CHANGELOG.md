@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add a six-component GCC SDK example with CMake, Make, binutils, fmt, and spdlog,
+  plus separate recordings of building the SDK and using a relocated copy.
+- Let small SDK recipes declare their bootstrap tools without requiring all
+  dependencies of the full preset. Recognize CMake built by an earlier recipe.
+
 ## 1.0.0 — Initial public preview
 
 - Build native Linux C/C++ stacks from YAML recipes, including a 37-component

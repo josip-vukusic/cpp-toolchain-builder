@@ -12,36 +12,52 @@ cmake --build build
 ```
 
 Built for teams maintaining native **Linux C/C++** development and CI environments.
-You can build a small library bundle with your existing compiler, or build the
-bundled GCC/LLVM preset together with its dependencies.
+Build a small library bundle with your existing compiler, or include the compiler
+and build tools with the [GCC SDK example](docs/gcc-toolchain.md).
 
 [Demo](#see-it-in-action) · [Quickstart](#quickstart) · [Sharing](#share-an-installation) ·
+[GCC SDK](docs/gcc-toolchain.md) ·
 [Full toolchain](#build-the-full-toolchain) · [Write a recipe](#create-your-own-recipes) ·
 [Custom library example](#example-add-a-new-xy-lib-library) ·
 [Validation](docs/validation.md)
 
 ## See it in action
 
-[![Terminal recording: build fmt and spdlog, copy the installation, activate the copy, and compile an application that prints The answer is 42.](docs/media/workflow.gif)](docs/demo.md)
+[![Terminal recording: copy a GCC SDK, activate its bundled compiler and build tools, then compile and run a C++ application.](docs/media/gcc-use.gif)](docs/gcc-demo.md)
 
-A real build on **Ubuntu 24.04 x86_64**, using cached source downloads. Pauses are
-shortened for readability. The original installation path is made unavailable
-before compiling with the copy.
+This SDK includes **GCC, CMake, Make, binutils, fmt, and spdlog**. The recording
+uses the tools and libraries inside the copied folder to build the application.
+The original installation and host GCC support files are unavailable during the
+check, and the receiving shell starts without build tools on `PATH`.
 
-**This small library bundle uses the host C++ compiler and CMake.** A receiving
-machine needs a compatible CPU architecture, Linux runtime, and compiler. The
-recording demonstrates relocation on the same machine.
+Recorded on **Ubuntu 24.04 x86_64**. A compatible Linux runtime, shell utilities,
+and system C library headers are still required. This is a relocation check on
+one host; it does not establish portability across all Linux distributions.
 
-[Read the text transcript](docs/media/workflow.txt) ·
-[Static image, terminal replay, and reproduction steps](docs/demo.md)
+<details>
+<summary>Watch the compiler and tools being built from source</summary>
+
+[![Terminal recording of the GCC, CMake, Make, fmt and spdlog source build, with long compilation pauses shortened.](docs/media/gcc-build.gif)](docs/gcc-demo.md)
+
+Source archives were cached before recording. This capture shows the successful
+resumed run; binutils was already complete. The terminal shows the real elapsed
+time, while long compilation pauses are shortened in playback.
+
+</details>
+
+[Build the GCC SDK](docs/gcc-toolchain.md) ·
+[Transcripts, timing, and recording details](docs/gcc-demo.md) ·
+[Smaller library-only demo](docs/demo.md)
 
 
 ## Current scope
 
 This is an early public release. The builder and library distribution workflow
-have automated and real-library tests on **Ubuntu 24.04 x86_64**. The bundled preset
-has 37 recipes, including GCC 15.2.0, LLVM 21.1.0, Boost, Arrow, AWS libraries, and
-Protobuf. **A clean build of that entire preset has not yet been validated.**
+have automated and real-library tests on **Ubuntu 24.04 x86_64**. The six-component
+GCC SDK above passed a fresh source build and a consumer check from a relocated
+copy. The larger bundled preset has 37 recipes, including LLVM 21.1.0, Boost,
+Arrow, AWS libraries, and Protobuf. **A clean build of that entire preset has not
+yet been validated.**
 
 A copied bundle needs a compatible CPU architecture, Linux runtime, and any
 external tools it was built to use. Library-only bundles still need a compatible
@@ -52,7 +68,8 @@ See the [test results and known limits](docs/validation.md).
 ## Quickstart
 
 Start with two small libraries and a runnable C++ example. This uses your host
-compiler and does not rebuild GCC or LLVM.
+compiler and does not rebuild GCC or LLVM. To include the compiler and build tools,
+follow the [GCC SDK instructions](docs/gcc-toolchain.md).
 
 Requirements: **Linux, Python 3.12+, a C++20 compiler, CMake, and Make**. The first
 installation and source download need network access. On Ubuntu 24.04, the basic

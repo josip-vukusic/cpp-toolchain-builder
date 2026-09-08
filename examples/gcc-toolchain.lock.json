@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "binutils": {
+      "identity": "c291275b70bd01b17fa7c831993c12de0735a9bc077cafa9f140cfb71fff3d36",
+      "sha256": "8a3eb4b10e7053312790f21ee1a38f7e2bbd6f4096abb590d3429e5119592d96",
+      "source": {
+        "filename": "binutils-2.45.tar.gz",
+        "sha256": "8a3eb4b10e7053312790f21ee1a38f7e2bbd6f4096abb590d3429e5119592d96",
+        "url": "https://ftpmirror.gnu.org/gnu/binutils/binutils-2.45.tar.gz"
+      }
+    },
+    "cmake": {
+      "identity": "fd5d2ca31e6ce4ffb0f662e4664764a050f7071eba88564590522df1c3fcc873",
+      "sha256": "b29f6f19733aa224b7763507a108a427ed48c688e1faf22b29c44e1c30549282",
+      "source": {
+        "filename": "cmake-4.1.1.tar.gz",
+        "sha256": "b29f6f19733aa224b7763507a108a427ed48c688e1faf22b29c44e1c30549282",
+        "url": "https://github.com/Kitware/CMake/releases/download/v4.1.1/cmake-4.1.1.tar.gz"
+      }
+    },
+    "fmt": {
+      "identity": "a67ecf599090dcba3c45d81f060eaaaa8113a93c74db8367b43a7352894351c2",
+      "sha256": "bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af",
+      "source": {
+        "filename": "fmt-11.2.0.tar.gz",
+        "sha256": "bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af",
+        "url": "https://github.com/fmtlib/fmt/archive/refs/tags/11.2.0.tar.gz"
+      }
+    },
+    "gcc": {
+      "identity": "76757f340f2c8ff9fd1e7006bd23289eaa79ccd7e9661da42dd2f62355419432",
+      "sha256": "7294d65cc1a0558cb815af0ca8c7763d86f7a31199794ede3f630c0d1b0a5723",
+      "source": {
+        "filename": "gcc-15.2.0.tar.gz",
+        "sha256": "7294d65cc1a0558cb815af0ca8c7763d86f7a31199794ede3f630c0d1b0a5723",
+        "url": "https://ftpmirror.gnu.org/gnu/gcc/gcc-15.2.0/gcc-15.2.0.tar.gz"
+      }
+    },
+    "make": {
+      "identity": "6afb117fffb2e7ef4321c60e01c3e8b223b73023dcbd9a48b2b92dd747f878f6",
+      "sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+      "source": {
+        "filename": "make-4.4.1.tar.gz",
+        "sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+        "url": "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz"
+      }
+    },
+    "spdlog": {
+      "identity": "368e4a4d9fa8c1bf075507e7d74319fa277e1476949f7fa0529197a7920244fe",
+      "sha256": "15a04e69c222eb6c01094b5c7ff8a249b36bb22788d72519646fb85feb267e67",
+      "source": {
+        "filename": "spdlog-1.15.3.tar.gz",
+        "sha256": "15a04e69c222eb6c01094b5c7ff8a249b36bb22788d72519646fb85feb267e67",
+        "url": "https://github.com/gabime/spdlog/archive/refs/tags/v1.15.3.tar.gz"
+      }
+    }
+  }
+}

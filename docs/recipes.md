@@ -41,6 +41,12 @@ omits `stage: core` dependencies. `stage: data` is for files and prebuilt tools.
 The supplied preset's core recipes target Linux x86_64; generic library recipes
 can use the host compiler.
 
+For a GCC-only SDK, the [GCC example](../examples/gcc-toolchain.yaml) builds GCC
+first and sets each later recipe's `environment.CC` and `environment.CXX` to
+`${prefix}/bin/gcc` and `${prefix}/bin/g++`. Its dependency chain builds Make and
+CMake before the libraries. These explicit paths avoid selecting another compiler
+from the host. The generated activation script recognizes the installed GCC.
+
 ## Sources
 
 Specify exactly one of:
@@ -115,6 +121,13 @@ prefix-relative glob patterns; each must match an existing path after installati
 and before a completed build can be skipped. Declare library files **and** headers.
 `requires` lists additional host executables for `doctor`. `environment` maps
 variable names to strings, expanding the same recipe variables.
+
+When every selected `stage: core` recipe explicitly declares `requires` (an empty
+list is allowed), `doctor` checks those declarations and the build systems'
+bootstrap tools instead of applying the original full preset's Ubuntu package
+list. Header and library development packages still need to be documented by the
+recipe author and are checked by the upstream configure step. A host CMake is not
+required when an earlier recipe installs `bin/cmake` before the first CMake build.
 
 Special Python adapters are deliberately limited to the bundled projects' unusual
 installation steps. They cover GCC's math libraries, GDB setup, CMake bootstrap

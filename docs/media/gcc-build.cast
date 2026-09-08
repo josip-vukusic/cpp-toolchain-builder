@@ -1,0 +1,11 @@
+{"version": 2, "width": 100, "height": 23, "duration": 3325.902233, "idle_time_limit": 2.5, "title": "Build a GCC, CMake and spdlog SDK", "env": {"SHELL": "/bin/bash", "TERM": "dumb"}}
+[0.000117, "o", "# Build a GCC SDK from cached sources. Completed components can resume.\r\n"]
+[0.000179, "o", "$ toolchain build --config examples/gcc-toolchain.yaml --jobs 8 --quiet --locked\r\n"]
+[0.123807, "o", "[1/6] binutils 2.45: up to date\r\n"]
+[0.123985, "o", "[2/6] Building gcc 15.2.0\r\n"]
+[2973.771899, "o", "[3/6] Building make 4.4.1\r\n"]
+[2985.766203, "o", "[4/6] Building cmake 4.1.1\r\n"]
+[3309.675971, "o", "[5/6] Building fmt 11.2.0\r\n"]
+[3313.655567, "o", "[6/6] Building spdlog 1.15.3\r\n"]
+[3321.386609, "o", "built:\r\n- gcc\r\n- make\r\n- cmake\r\n- fmt\r\n- spdlog\r\nskipped:\r\n- binutils\r\nprefix: $PROJECT/install/gcc-sdk\r\n"]
+[3321.402233, "o", "\r\nBuild exit code: 0; elapsed: 3321.4 seconds.\r\n"]

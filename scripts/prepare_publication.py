@@ -15,6 +15,10 @@ FILES = (
     'toolchain.yaml', 'toolchain.lock.json', 'toolchain_cli.py',
     'docs/media/workflow.gif', 'docs/media/workflow.png',
     'docs/media/workflow.cast', 'docs/media/workflow.txt',
+    'docs/media/gcc-build.gif', 'docs/media/gcc-build.png',
+    'docs/media/gcc-build.cast', 'docs/media/gcc-build.txt',
+    'docs/media/gcc-use.gif', 'docs/media/gcc-use.png',
+    'docs/media/gcc-use.cast', 'docs/media/gcc-use.txt',
 )
 TREES = {
     'cpp_toolchain_builder': {'.py', '.yaml'},

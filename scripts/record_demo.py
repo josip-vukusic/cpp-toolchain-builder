@@ -50,16 +50,27 @@ def record(workspace, cmake, venv):
         'CC': '/usr/bin/gcc', 'CXX': '/usr/bin/g++',
         'TOOLCHAIN_DEMO_WORKSPACE': str(workspace),
     }
+    return capture(
+        ['unshare', '--user', '--map-root-user', '--net', 'bash', '--noprofile',
+         '--norc', str(ROOT / 'scripts/demo.sh')], workspace, env)
+
+
+def capture(argv, workspace, env, *, recording=None):
+    """Capture real output from a command in a terminal, retaining its timing."""
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', ROWS, COLS, 0, 0))
     started = time.monotonic()
     process = subprocess.Popen(
-        ['unshare', '--user', '--map-root-user', '--net', 'bash', '--noprofile',
-         '--norc', str(ROOT / 'scripts/demo.sh')],
+        argv,
         cwd=workspace, env=env, stdin=subprocess.DEVNULL, stdout=slave, stderr=slave,
     )
     os.close(slave)
     events = []
+    stream = recording.open('w') if recording else None
+    if stream:
+        stream.write(json.dumps({'version': 2, 'width': COLS, 'height': ROWS,
+                                 'idle_time_limit': 2.5, 'env': {'SHELL': '/bin/bash', 'TERM': 'dumb'}}) + '\n')
+        stream.flush()
     decoder = codecs.getincrementaldecoder('utf-8')()
     try:
         while True:
@@ -73,10 +84,15 @@ def record(workspace, cmake, venv):
                 break
             text = decoder.decode(data)
             events.append([round(time.monotonic() - started, 6), 'o', text])
+            if stream:
+                stream.write(json.dumps(events[-1]) + '\n')
+                stream.flush()
             print(text, end='', flush=True)
         if process.wait() != 0:
             raise RuntimeError(f'Demo failed; build logs retained in {workspace}')
     finally:
+        if stream:
+            stream.close()
         if process.poll() is None:
             process.terminate()
             process.wait()
@@ -97,7 +113,10 @@ def screen(text):
     return lines
 
 
-def render(events, duration, output, font_path, platform_label):
+def render(events, duration, output, font_path, platform_label, *, basename='workflow',
+           subtitle='Build libraries. Copy the folder. Activate. Compile.',
+           requirements='Host compiler + CMake required',
+           limitations='Same-host relocation | Compatible Linux runtime required | Pauses shortened'):
     from PIL import Image, ImageDraw, ImageFont
 
     font = ImageFont.truetype(str(font_path), 17)
@@ -117,20 +136,20 @@ def render(events, duration, output, font_path, platform_label):
         frame = Image.new('RGB', (width, height), background)
         draw = ImageDraw.Draw(frame)
         draw.text((30, 21), 'C++ Toolchain Builder', font=title, fill=ink)
-        draw.text((30, 54), 'Build libraries. Copy the folder. Activate. Compile.', font=small, fill=muted)
+        draw.text((30, 54), subtitle, font=small, fill=muted)
         draw.rounded_rectangle((20, 91, width - 20, 614), radius=14, fill=panel)
         for row, line in enumerate(lines):
             color = accent if line.startswith('$ ') or line == 'The answer is 42' else (
                 muted if line.startswith('#') else ink)
             draw.text((38, 111 + row * 21), line, font=font, fill=color)
-        draw.text((30, 633), platform_label + ' | Host compiler + CMake required', font=small, fill=ink)
-        draw.text((30, 658), 'Same-host relocation | Compatible Linux runtime required | Pauses shortened', font=small, fill=muted)
+        draw.text((30, 633), platform_label + ' | ' + requirements, font=small, fill=ink)
+        draw.text((30, 658), limitations, font=small, fill=muted)
         frames.append(frame.quantize(colors=64))
         durations.append(max(100, round(min(next_at - at, 2.5) * 100) * 10))
     durations[-1] = 4500
-    frames[0].save(output / 'workflow.gif', save_all=True, append_images=frames[1:],
+    frames[0].save(output / f'{basename}.gif', save_all=True, append_images=frames[1:],
                    duration=durations, loop=0, optimize=True)
-    frames[-1].convert('RGB').save(output / 'workflow.png')
+    frames[-1].convert('RGB').save(output / f'{basename}.png')
     return round(sum(durations) / 1000, 2)
 
 

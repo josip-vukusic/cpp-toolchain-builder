@@ -6,6 +6,10 @@ recursive-include examples *.yaml *.json *.cpp CMakeLists.txt
 recursive-include docs *.md
 include docs/media/workflow.gif docs/media/workflow.png
 include docs/media/workflow.cast docs/media/workflow.txt
+include docs/media/gcc-build.gif docs/media/gcc-build.png
+include docs/media/gcc-build.cast docs/media/gcc-build.txt
+include docs/media/gcc-use.gif docs/media/gcc-use.png
+include docs/media/gcc-use.cast docs/media/gcc-use.txt
 recursive-include tests *.py *.cpp CMakeLists.txt
 recursive-include scripts *.py *.sh
 recursive-include .github *.yaml *.yml *.md
