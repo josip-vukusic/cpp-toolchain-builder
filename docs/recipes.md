@@ -38,8 +38,19 @@ commands are errors. To customize built-in recipes, export them with
 The default `system` mode uses `CC`/`CXX` or `cc`/`c++`, optionally overridden by
 `toolchain.cc`/`cxx`. `--compiler-prefix` uses an external Clang installation and
 omits `stage: core` dependencies. `stage: data` is for files and prebuilt tools.
+Configurations can set `toolchain.compiler_prefix`, `toolchain.sanitizer`
+(`asan-ubsan` or `tsan`), and `toolchain.lockfile`; command-line values override
+these defaults. Configuration paths are relative to the YAML file. See
+[`toolchain-v2-asan.yaml`](../toolchain-v2-asan.yaml) for a library SDK that shares
+the release source lock and uses an external compiler.
 The supplied preset's core recipes target Linux x86_64; generic library recipes
 can use the host compiler.
+
+`toolchain.variants: [standard, asan, tsan]` enables a [combined SDK bundle](bundles.md).
+Its prefix and work settings become parent directories, and the builder derives
+each variant's paths and instrumentation. Bundle configurations require
+`compiler: toolchain` and omit `compiler_prefix` and `sanitizer`; the sibling
+`standard` SDK supplies the compiler to both sanitizer variants.
 
 For a GCC-only SDK, the [GCC example](../examples/gcc-toolchain.yaml) builds GCC
 first and sets each later recipe's `environment.CC` and `environment.CXX` to
@@ -121,6 +132,30 @@ prefix-relative glob patterns; each must match an existing path after installati
 and before a completed build can be skipped. Declare library files **and** headers.
 `requires` lists additional host executables for `doctor`. `environment` maps
 variable names to strings, expanding the same recipe variables.
+
+## Per-recipe sanitizer overrides
+
+Library recipes may append flags for one sanitizer profile without changing
+other recipes or the SDK's consumer flags. For example, the OpenSSL recipe uses:
+
+```yaml
+sanitizer_overrides:
+  asan-ubsan:
+    compile_flags: [-fno-sanitize=function]
+```
+
+Supported profile keys are `asan-ubsan` and `tsan`. Each accepts `compile_flags`
+(appended to `CFLAGS` and `CXXFLAGS`) and `link_flags` (appended to `LDFLAGS`), as
+lists of individual arguments. Flags expand recipe variables and are appended
+after the profile defaults, so individual checks can be disabled without
+disabling the sanitizer group. Custom recipes must consume these environment
+variables, as OpenSSL's `Configure` does.
+
+Overrides apply only while building that recipe; they are not exported through
+activation scripts or CMake toolchain files. Only the active profile's override
+affects build fingerprints. Changing it invalidates that recipe and its declared
+dependents. Use `toolchain build` to apply such changes; `resume` deliberately
+rejects changed recipes that have already completed.
 
 When every selected `stage: core` recipe explicitly declares `requires` (an empty
 list is allowed), `doctor` checks those declarations and the build systems'

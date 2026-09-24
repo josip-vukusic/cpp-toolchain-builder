@@ -14,7 +14,7 @@ libraries:
     - --build=x86_64-linux-gnu
     - --host=x86_64-linux-gnu
     - --enable-ld=default
-    - --enable-gold
+    - --disable-gold
     - --enable-lto
     - --enable-plugins
     - --enable-shared
@@ -25,7 +25,7 @@ libraries:
     - --enable-new-dtags
     - --disable-werror
   artifacts:
-  - bin/ld.gold
+  - bin/ld.bfd
   - bin/ld
   - bin/ar
   environment:
@@ -54,7 +54,6 @@ libraries:
     - --with-system-zlib
     - --enable-checking=release
     - --enable-languages=c,c++,fortran
-    - --enable-gold=yes
     - --enable-ld=yes
     - --enable-lto
     - --enable-bootstrap
@@ -227,8 +226,8 @@ libraries:
     - -DCMAKE_CXX_LINK_FLAGS=-L${prefix}/lib64 -Wl,-rpath,${prefix}/lib64
     - -DCMAKE_BUILD_TYPE=RelWithDebInfo
     - -DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -DNDEBUG
-    - -DCMAKE_CXX_FLAGS=-fuse-ld=gold -fPIC -Wno-unused-command-line-argument -Wno-unknown-warning-option
-    - -DCMAKE_C_FLAGS=-fuse-ld=gold -fPIC -Wno-unused-command-line-argument -Wno-unknown-warning-option
+    - -DCMAKE_CXX_FLAGS=-fuse-ld=bfd -fPIC -Wno-unused-command-line-argument -Wno-unknown-warning-option
+    - -DCMAKE_C_FLAGS=-fuse-ld=bfd -fPIC -Wno-unused-command-line-argument -Wno-unknown-warning-option
     - -DLLVM_ENABLE_PROJECTS=clang;clang-tools-extra;compiler-rt;lldb;lld
     - -DLLVM_ENABLE_RUNTIMES=${llvm_runtimes}
     - -DLLVM_LINK_LLVM_DYLIB=ON
@@ -355,11 +354,11 @@ libraries:
   build:
     system: custom
     commands:
-    - - ./bootstrap.sh
-      - --prefix=${prefix}
-      - --with-toolset=clang
-      - --with-python=python3
-      - --without-icu
+    - shell: |
+        # A virtualenv has no Python development headers; use its base installation.
+        python_root=$("$TC_PYTHON" -c 'import sys; print(sys.base_prefix)')
+        ./bootstrap.sh --prefix="$TC_PREFIX" --with-toolset=clang \
+          --with-python="$TC_PYTHON" --with-python-root="$python_root" --without-icu
     - shell: 'args=(); if [[ "$TC_STDLIB" == "libc++" ]]; then args+=("cxxflags=-stdlib=libc++ -fPIC" "linkflags=-stdlib=libc++");
         else args+=("cxxflags=-fPIC --gcc-toolchain=$TC_COMPILER_PREFIX"); fi
 
@@ -441,6 +440,10 @@ libraries:
 - name: openssl
   version: 3.3.1
   stage: library
+  # Scope the function-pointer check exception to OpenSSL's ASan/UBSan build.
+  sanitizer_overrides:
+    asan-ubsan:
+      compile_flags: [-fno-sanitize=function]
   source:
     url: https://www.openssl.org/source/openssl-3.3.1.tar.gz
     filename: openssl-3.3.1.tar.gz
@@ -625,6 +628,12 @@ libraries:
     - -DARROW_WITH_ZSTD=ON
     - -DARROW_DEPENDENCY_SOURCE=AUTO
     - -DARROW_DEPENDENCY_USE_SHARED=OFF
+    # Ignore packages registered by previous SDK builds, including RapidJSON's
+    # build-tree config whose old policy version is rejected by CMake 4.
+    - -DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=ON
+    - -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF
+    - -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON
+    - -DRapidJSON_SOURCE=BUNDLED
     - -Dxsimd_SOURCE=BUNDLED
     - -DThrift_SOURCE=BUNDLED
     - -DBOOST_ROOT=${prefix}
@@ -761,6 +770,8 @@ libraries:
   - cel-cpp
   build:
     system: cmake
+    prepare:
+    - hook: protovalidate_prepare
     options:
     - -DPROTOVALIDATE_CC_ENABLE_INSTALL=OFF
     - -DPROTOVALIDATE_CC_ENABLE_VENDORING=ON
@@ -782,6 +793,7 @@ libraries:
   - lib/libcel_cpp.a
   - include/buf/validate/validator.h
   - include/buf/validate/validate.pb.h
+  - include/buf/validate/validate.proto
   - include/cel/expr/syntax.pb.h
   - include/cel/expr/checked.pb.h
   - include/internal/new.h

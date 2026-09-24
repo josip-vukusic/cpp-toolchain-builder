@@ -14,7 +14,12 @@ from pathlib import Path
 from . import __version__
 from .config import Configuration
 from .sources import SourceCache, source_identity
+from .sanitizers import sanitizer_flags
 from .util import ToolchainError, digest, exclusive_lock, expand, inside, read_json, write_json
+
+
+BUILD_ENVIRONMENT_KEYS = ("CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "PATH",
+                          "CMAKE_PREFIX_PATH", "PKG_CONFIG_PATH", "LD_LIBRARY_PATH")
 
 
 def now() -> str:
@@ -82,17 +87,27 @@ class Builder:
                  work: str | None = None, cache: str | None = None, jobs: int | None = None,
                  stdlib: str | None = None, compiler_prefix: str | None = None,
                  offline: bool = False, quiet: bool = False, locked: bool = False,
-                 lockfile: str | None = None):
+                 lockfile: str | None = None, resume: bool = False, sanitizer: str | None = None):
         self.config = config
+        if "variants" in config.settings:
+            raise ToolchainError("Bundle configurations must be expanded into variants before building")
+        self.compiler_relative_prefix: str | None = None
+        self.compiler_identity: str | None = None
         self.prefix = config.location("prefix", prefix, "./install")
         self.work = config.location("work", work, ".toolchain-work")
         self.cache_path = config.location("cache", cache, ".toolchain-cache")
         self.jobs = jobs or config.settings.get("jobs", min(os.cpu_count() or 1, 8))
         self.stdlib = stdlib or config.settings.get("stdlib", "libstdc++")
-        self.compiler_prefix = Path(compiler_prefix).expanduser().resolve() if compiler_prefix else None
+        self.compiler_prefix = (Path(compiler_prefix).expanduser().resolve() if compiler_prefix else
+                                config.location("compiler_prefix", None, "") if config.settings.get("compiler_prefix") else None)
+        self.sanitizer = sanitizer or config.settings.get("sanitizer")
+        self.sanitizer_flags = sanitizer_flags(self.sanitizer)
+        if self.sanitizer and (not self.compiler_prefix or self.prefix == self.compiler_prefix):
+            raise ToolchainError("Sanitizer builds require --compiler-prefix and a separate --prefix for libraries")
         self.runner = Runner(quiet)
         self.cache = SourceCache(self.cache_path, self.runner, offline)
-        self.lockfile = Path(lockfile).resolve() if lockfile else config.path.with_suffix(".lock.json")
+        self.lockfile = (Path(lockfile).expanduser().resolve() if lockfile else
+                         config.location("lockfile", None, "") if config.settings.get("lockfile") else config.path.with_suffix(".lock.json"))
         self.locked = locked
         self.source_lock = read_json(self.lockfile, {"schema_version": 1, "sources": {}})
         if locked and not self.lockfile.is_file():
@@ -101,6 +116,9 @@ class Builder:
             raise ToolchainError(f"Invalid source lockfile: {self.lockfile}")
         self.state_path = self.prefix / "share/toolchain/build-state.json"
         self.state = read_json(self.state_path, {"schema_version": 1, "recipes": {}})
+        self.check_sanitizer_prefix()
+        self.resume = resume
+        self.build_environment = os.environ.copy()
         self.fingerprints: dict[str, str] = {}
         self.sources: dict[str, Path] = {}
         self.current: dict = {}
@@ -113,6 +131,12 @@ class Builder:
             if first.is_relative_to(second) or second.is_relative_to(first):
                 raise ToolchainError("Install prefix, work and cache directories must be separate, non-nested directories")
 
+    def check_sanitizer_prefix(self) -> None:
+        if self.state.get("recipes") and self.state.get("sanitizer") != self.sanitizer:
+            raise ToolchainError("Cannot mix sanitizer profiles or release libraries in one prefix; choose a separate --prefix")
+        if self.sanitizer and not self.state.get("recipes") and any(self.prefix.glob("lib*/lib*.a")):
+            raise ToolchainError("Sanitizer destination contains untracked libraries; choose an empty --prefix")
+
     def selected(self, requested: list[str] | None) -> list[str]:
         names = self.config.select(requested)
         if self.compiler_prefix:
@@ -121,8 +145,77 @@ class Builder:
             raise ToolchainError("No recipes selected")
         return names
 
+    def _changed_completed(self, names: list[str]) -> list[str]:
+        self.fingerprints.clear()
+        changed = []
+        for name in names:
+            fingerprint = self.fingerprint(self.config.recipes[name])
+            self.fingerprints[name] = fingerprint
+            old = self.state["recipes"].get(name, {})
+            if old.get("status") == "complete" and old.get("fingerprint") != fingerprint:
+                changed.append(name)
+        return changed
+
+    def prepare_resume(self, requested: list[str] | None = None) -> None:
+        if not self.resume:
+            return
+        names = self.selected(requested)
+        if not any(name in self.state["recipes"] for name in names):
+            raise ToolchainError("No previous build to resume for these recipes; use 'toolchain build' first")
+        saved = self.state.get("build_environment")
+        if saved is not None:
+            if (not isinstance(saved, dict) or set(saved) != set(BUILD_ENVIRONMENT_KEYS)
+                    or any(value is not None and not isinstance(value, str) for value in saved.values())):
+                raise ToolchainError("Invalid saved build environment in build-state.json")
+            for key, value in saved.items():
+                if value is None:
+                    self.build_environment.pop(key, None)
+                else:
+                    self.build_environment[key] = value
+        else:
+            # Older state files did not record the environment. Try the current
+            # one, then PATH from retained Autotools logs. Never trust an inferred
+            # PATH unless every selected completed fingerprint still matches.
+            complete = [name for name in names if self.state["recipes"].get(name, {}).get("status") == "complete"]
+            if not complete:
+                raise ToolchainError("Older build state has no saved environment or completed recipes to verify; "
+                                     "repeat the original 'toolchain build' command")
+            if self._changed_completed(names):
+                current_path = self.build_environment.get("PATH")
+                roots = [self.prefix]
+                if self.compiler_prefix:
+                    roots.append(self.compiler_prefix)
+                if self.config.settings.get("bootstrap_prefix"):
+                    roots.append(Path(self.config.settings["bootstrap_prefix"]).expanduser().resolve())
+                added = [str(root / "bin") for root in roots]
+                for name in complete:
+                    fingerprint = self.state["recipes"][name].get("fingerprint", "")
+                    if len(fingerprint) != 64 or any(c not in "0123456789abcdef" for c in fingerprint):
+                        continue
+                    log = self.work / "build" / f"{name}-{fingerprint[:16]}" / "build/config.log"
+                    if not log.is_file():
+                        continue
+                    paths = [line[6:] for line in log.read_text(errors="replace").splitlines() if line.startswith("PATH: ")]
+                    if paths[:len(added)] != added or len(paths) <= len(added):
+                        continue
+                    self.build_environment["PATH"] = os.pathsep.join(paths[len(added):])
+                    if not self._changed_completed(names):
+                        break
+                else:
+                    if current_path is None:
+                        self.build_environment.pop("PATH", None)
+                    else:
+                        self.build_environment["PATH"] = current_path
+                    raise ToolchainError("Cannot recover a matching environment from older build state. "
+                                         "Use the original shell and build options, or 'toolchain build' to rebuild changed components")
+        changed = self._changed_completed(names)
+        if changed:
+            raise ToolchainError("Cannot resume: completed recipes have changed: " + ", ".join(changed)
+                                 + ". Keep the original build options (including --locked), or use "
+                                 "'toolchain build' to rebuild changed components")
+
     def environment(self, recipe: dict) -> dict[str, str]:
-        env = os.environ.copy()
+        env = self.build_environment.copy()
         roots = [self.prefix]
         if self.compiler_prefix:
             roots.append(self.compiler_prefix)
@@ -153,6 +246,19 @@ class Builder:
         # Shell recipes use these explicit environment variables, with normal shell quoting.
         env.update({f"TC_{key.upper()}": value for key, value in self.variables.items()})
         env.update({key: expand(value, self.variables) for key, value in recipe.get("environment", {}).items()})
+        if self.sanitizer and recipe.get("stage", "library") == "library":
+            for key in ("CFLAGS", "CXXFLAGS", "LDFLAGS"):
+                env[key] = (env.get(key, "") + " " + " ".join(self.sanitizer_flags)).strip()
+            overrides = self.sanitizer_overrides(recipe)
+            for key, field in (("CFLAGS", "compile_flags"), ("CXXFLAGS", "compile_flags"), ("LDFLAGS", "link_flags")):
+                flags = [expand(flag, self.variables) for flag in overrides.get(field, [])]
+                if flags:
+                    env[key] += " " + shlex.join(flags)
+            # The external SDK supplies build tools, not release dependencies.
+            env["CMAKE_PREFIX_PATH"] = str(self.prefix)
+            env["PKG_CONFIG_PATH"] = os.pathsep.join(str(self.prefix / d) for d in
+                                                   ("lib/pkgconfig", "lib64/pkgconfig", "share/pkgconfig"))
+            env["LIBRARY_PATH"] = os.pathsep.join(str(self.prefix / d) for d in ("lib", "lib64"))
         return env
 
     def context(self, recipe: dict, fingerprint: str) -> None:
@@ -170,14 +276,23 @@ class Builder:
         self.env = self.environment(recipe)
         self.runner.env = self.env
 
+    def sanitizer_overrides(self, recipe: dict) -> dict:
+        return recipe.get("sanitizer_overrides", {}).get(self.sanitizer, {}) if self.sanitizer else {}
+
     def fingerprint(self, recipe: dict) -> str:
-        environment = {key: os.environ.get(key, "") for key in
-                       ("CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "PATH", "CMAKE_PREFIX_PATH", "PKG_CONFIG_PATH", "LD_LIBRARY_PATH")}
-        return digest({"engine": __version__, "recipe": recipe, "source": source_identity(recipe),
+        environment = {key: self.build_environment.get(key, "") for key in BUILD_ENVIRONMENT_KEYS}
+        # Inactive profile settings must not invalidate unrelated SDK builds.
+        effective_recipe = {key: value for key, value in recipe.items() if key != "sanitizer_overrides"}
+        overrides = self.sanitizer_overrides(recipe)
+        if overrides:
+            effective_recipe["sanitizer_overrides"] = {self.sanitizer: overrides}
+        return digest({"engine": __version__, "recipe": effective_recipe, "source": source_identity(recipe),
                        "locked": self.source_lock["sources"].get(recipe["name"]) if self.locked else None,
                        "settings": self.config.settings, "prefix": str(self.prefix), "stdlib": self.stdlib,
+                       **({"sanitizer": self.sanitizer} if self.sanitizer else {}),
                        "platform": [platform.system(), platform.machine()], "environment": environment,
                        "compiler_prefix": str(self.compiler_prefix),
+                       **({"compiler_identity": self.compiler_identity} if self.compiler_identity else {}),
                        "dependencies": {d: self.fingerprints.get(d, str(self.compiler_prefix)) for d in recipe.get("depends_on", [])}})
 
     def commands(self, recipe: dict) -> list:
@@ -194,6 +309,10 @@ class Builder:
                 args += ["-DCMAKE_CXX_STANDARD=20", f"-DCMAKE_C_COMPILER={self.env['CC']}",
                          f"-DCMAKE_CXX_COMPILER={self.env['CXX']}", "-DCMAKE_REQUIRED_INCLUDES=${prefix}/include"]
             args += build.get("options", [])
+            if self.sanitizer and recipe.get("stage", "library") == "library":
+                args += [f"-DCMAKE_C_FLAGS={self.env['CFLAGS']}", f"-DCMAKE_CXX_FLAGS={self.env['CXXFLAGS']}",
+                         f"-DCMAKE_EXE_LINKER_FLAGS={self.env['LDFLAGS']}",
+                         f"-DCMAKE_SHARED_LINKER_FLAGS={self.env['LDFLAGS']}"]
             result.append({"run": args, "cwd": source})
             command = ["cmake", "--build", "${build}", "--parallel", "${jobs}"]
             if build.get("targets"):
@@ -203,15 +322,27 @@ class Builder:
                 result.append({"run": ["cmake", "--install", "${build}"], "cwd": source})
         elif system == "autotools":
             cwd = "${source}" if build.get("in_source") else "${build}"
-            result += [{"run": [source + "/configure", "--prefix=${prefix}", *build.get("options", [])], "cwd": cwd},
+            options = list(build.get("options", []))
+            if self.sanitizer and recipe["name"] == "xz":
+                # XZ's configure rejects sanitizer instrumentation with Landlock.
+                options.append("--disable-sandbox")
+            result += [{"run": [source + "/configure", "--prefix=${prefix}", *options], "cwd": cwd},
                        {"run": ["make", "-j${jobs}", *build.get("make_options", [])], "cwd": cwd},
                        {"run": ["make", *build.get("make_options", []), *build.get("install_targets", ["install"])], "cwd": cwd}]
         elif system == "make":
             options = ["PREFIX=${prefix}", *build.get("options", [])]
+            if self.sanitizer and recipe.get("stage", "library") == "library":
+                options += [f"{key}={self.env[key]}" for key in ("CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS")]
             result += [["make", "-j${jobs}", *options, *build.get("targets", [])],
                        ["make", *options, *build.get("install_targets", ["install"])]]
         elif system == "custom":
             result.extend(build["commands"])
+            if self.sanitizer and recipe["name"] == "boost":
+                # b2 does not consume the conventional compiler flag variables.
+                result = [dict(step, shell=step["shell"].replace(
+                    './b2 toolset=clang', 'args=("cflags=$CFLAGS" "cxxflags=$CXXFLAGS" "linkflags=$LDFLAGS $CXXFLAGS"); ./b2 toolset=clang'))
+                    if isinstance(step, dict) and "./b2 toolset=clang" in step.get("shell", "") else step
+                    for step in result]
         elif system in {"copy", "header-only"}:
             result.append({"hook": "copy_files"})
         result.extend(build.get("after", []))
@@ -233,6 +364,7 @@ class Builder:
             self.runner([expand(arg, self.variables) for arg in step["run"]], cwd=cwd, env=self.env)
 
     def plan(self, requested: list[str] | None = None) -> list[dict]:
+        self.prepare_resume(requested)
         result = []
         for name in self.selected(requested):
             recipe = self.config.recipes[name]
@@ -277,6 +409,7 @@ class Builder:
     def build(self, requested: list[str] | None = None, force: bool = False) -> dict:
         from .inspection import write_metadata
         names = self.selected(requested)
+        self.prepare_resume(requested)
         if self.compiler_prefix:
             for tool in ("clang", "clang++", "cmake"):
                 if not os.access(self.compiler_prefix / "bin" / tool, os.X_OK):
@@ -286,6 +419,12 @@ class Builder:
         self.work.mkdir(parents=True, exist_ok=True)
         with exclusive_lock(self.prefix / "share/toolchain/.build.lock"), exclusive_lock(self.work / ".build.lock"):
             self.state = read_json(self.state_path, {"schema_version": 1, "recipes": {}})
+            self.check_sanitizer_prefix()
+            self.prepare_resume(requested)
+            if self.sanitizer:
+                self.state["sanitizer"] = self.sanitizer
+            self.state["build_environment"] = {key: self.build_environment.get(key) for key in BUILD_ENVIRONMENT_KEYS}
+            write_json(self.state_path, self.state)
             for index, name in enumerate(names, 1):
                 recipe = self.config.recipes[name]
                 fp = self.fingerprint(recipe)

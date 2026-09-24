@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.egg-info/
 .toolchain-work/
+.toolchain-work-*/
 .toolchain-cache/
 install/
 output/

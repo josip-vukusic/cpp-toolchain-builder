@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import contextlib
 import gzip
 import json
 import os
@@ -16,6 +17,7 @@ from typing import TYPE_CHECKING
 import yaml
 
 from .util import ToolchainError, atomic_write, exclusive_lock, read_json, sha256, write_json
+from .sanitizers import sanitizer_flags
 
 if TYPE_CHECKING:
     from .engine import Builder
@@ -27,14 +29,16 @@ def compiler_configuration(builder: Builder) -> dict:
     for cc, cxx in (("clang", "clang++"), ("gcc", "g++")):
         if (root / "bin" / cc).is_file() and (root / "bin" / cxx).is_file():
             return {"mode": "external" if builder.compiler_prefix else "bundled",
-                    "prefix": str(root), "cc": cc, "cxx": cxx}
+                    "prefix": str(root), "cc": cc, "cxx": cxx,
+                    **({'relative_prefix': builder.compiler_relative_prefix} if builder.compiler_relative_prefix else {})}
     return {"mode": "system", **{
         key.lower(): shutil.which(builder.env.get(key, default), path=builder.env.get("PATH"))
         or builder.env.get(key, default) for key, default in (("CC", "cc"), ("CXX", "c++"))}}
 
 
-def activation(prefix: Path, stdlib: str = "libstdc++", compiler: dict | None = None) -> str:
-    variables = ["PATH", "LD_LIBRARY_PATH", "CMAKE_PREFIX_PATH", "PKG_CONFIG_PATH", "CC", "CXX", "CFLAGS", "CXXFLAGS", "TOOLCHAIN_PREFIX"]
+def activation(prefix: Path, stdlib: str = "libstdc++", compiler: dict | None = None,
+               sanitizer: str | None = None) -> str:
+    variables = ["PATH", "LD_LIBRARY_PATH", "CMAKE_PREFIX_PATH", "PKG_CONFIG_PATH", "CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS", "TOOLCHAIN_PREFIX"]
     lines = ['# Source this file in bash or zsh.',
              'if command -v toolchain_deactivate >/dev/null 2>&1; then toolchain_deactivate; fi']
     for key in variables:
@@ -49,7 +53,9 @@ def activation(prefix: Path, stdlib: str = "libstdc++", compiler: dict | None = 
     # Keep an external compiler dependency explicit; never silently fall back to a
     # different C++ runtime when a library-only archive is activated.
     if compiler and compiler['mode'] == 'external':
-        lines += [f'_TC_COMPILER_ROOT={shlex.quote(compiler["prefix"])}',
+        compiler_assignment = (f'_TC_COMPILER_ROOT="$(cd "$TOOLCHAIN_PREFIX/"{shlex.quote(compiler["relative_prefix"])} && pwd)" || return 1'
+                               if compiler.get('relative_prefix') else f'_TC_COMPILER_ROOT={shlex.quote(compiler["prefix"])}')
+        lines += [compiler_assignment,
                   'export PATH="$TOOLCHAIN_PREFIX/bin:$_TC_COMPILER_ROOT/bin${_TC_OLD_PATH:+:$_TC_OLD_PATH}"',
                   'export LD_LIBRARY_PATH="$TOOLCHAIN_PREFIX/lib:$TOOLCHAIN_PREFIX/lib64:$_TC_COMPILER_ROOT/lib:$_TC_COMPILER_ROOT/lib64${_TC_OLD_LD_LIBRARY_PATH:+:$_TC_OLD_LD_LIBRARY_PATH}"',
                   f'export CC="$_TC_COMPILER_ROOT/bin/{compiler["cc"]}" CXX="$_TC_COMPILER_ROOT/bin/{compiler["cxx"]}"']
@@ -69,6 +75,10 @@ def activation(prefix: Path, stdlib: str = "libstdc++", compiler: dict | None = 
     else:
         lines += ['if [ -n "${_TC_COMPILER_ROOT:-}" ] && [ -x "$_TC_COMPILER_ROOT/bin/clang++" ] && [ -x "$_TC_COMPILER_ROOT/bin/g++" ]; then',
                   '  export CXXFLAGS="--gcc-toolchain=\\"$_TC_COMPILER_ROOT\\" $CXXFLAGS"', 'fi']
+    if sanitizer:
+        flags = " ".join(sanitizer_flags(sanitizer))
+        for key in ("CFLAGS", "CXXFLAGS", "LDFLAGS"):
+            lines += [f'export {key}="{flags} ${{{key}:-}}"']
     lines += ['unset _TC_COMPILER_ROOT', 'toolchain_deactivate() {']
     for key in variables:
         lines += [f'  if [ "$_TC_HAD_{key}" = 1 ]; then export {key}="$_TC_OLD_{key}"; else unset {key}; fi',
@@ -90,20 +100,24 @@ def write_metadata(builder: Builder) -> None:
     manifest = {"schema_version": 1, "toolchain": {"name": settings.get("name", "toolchain"),
                 "version": str(settings.get("version", "1")), "prefix": str(builder.prefix),
                 "stdlib": builder.stdlib, "platform": platform.platform(), "arch": platform.machine(),
-                "compiler": compiler}, "generated_at": now(), "components": entries}
+                "compiler": compiler, "sanitizer": builder.sanitizer}, "generated_at": now(), "components": entries}
     write_json(builder.prefix / "share/toolchain/manifest.json", manifest, mode=0o644)
     atomic_write(builder.prefix / "share/manifest.yaml", yaml.safe_dump(manifest, sort_keys=False), mode=0o644)
     write_json(builder.prefix / "share/sbom/bom.cdx.json", {"bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
                "components": [{"type": "library", "name": entry["name"], "version": entry["version"],
                                **({"hashes": [{"alg": "SHA-256", "content": entry["source"]["sha256"]}]}
                                   if entry.get("source", {}).get("sha256") else {})} for entry in complete]}, mode=0o644)
-    atomic_write(builder.prefix / "activate", activation(builder.prefix, builder.stdlib, compiler), mode=0o644)
+    atomic_write(builder.prefix / "activate", activation(builder.prefix, builder.stdlib, compiler, builder.sanitizer), mode=0o644)
     root = compiler.get('prefix', str(builder.prefix)) if compiler['mode'] == 'external' else '${TOOLCHAIN_PREFIX}'
+    if compiler.get('relative_prefix'):
+        root = '${TOOLCHAIN_PREFIX}/' + compiler['relative_prefix']
     cc_path = root + '/bin/' + compiler['cc'] if compiler['mode'] != 'system' else compiler['cc']
     cxx_path = root + '/bin/' + compiler['cxx'] if compiler['mode'] != 'system' else compiler['cxx']
     flags = '-stdlib=libc++' if builder.stdlib == 'libc++' else (
         f'--gcc-toolchain=\\"{root}\\"' if compiler['mode'] != 'system' and compiler['cxx'] == 'clang++'
         and (Path(compiler['prefix']) / 'bin/g++').is_file() else '')
+    instrumentation = " ".join(builder.sanitizer_flags)
+    flags = (flags + " " + instrumentation).strip()
     def cmake_literal(value: str) -> str:
         # Preserve only the generated relocation variable, never caller CMake syntax.
         return value.replace('\\', '\\\\').replace('"', '\\"').replace(';', '\\;').replace('$', '\\$').replace('\\${TOOLCHAIN_PREFIX}', '${TOOLCHAIN_PREFIX}')
@@ -114,15 +128,19 @@ list(PREPEND CMAKE_PREFIX_PATH "${{TOOLCHAIN_PREFIX}}")
 set(CMAKE_CXX_STANDARD 20 CACHE STRING "")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "")
 set(CMAKE_CXX_FLAGS_INIT "{flags}")
+set(CMAKE_C_FLAGS_INIT "{instrumentation}")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "{instrumentation}")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "{instrumentation}")
 list(APPEND CMAKE_BUILD_RPATH "${{TOOLCHAIN_PREFIX}}/lib" "${{TOOLCHAIN_PREFIX}}/lib64" "{cmake_literal(root)}/lib" "{cmake_literal(root)}/lib64")
 ''', mode=0o644)
     requirement = ('The compiler is included in this installation.' if compiler['mode'] == 'bundled' else
-                   f'This is a library-only installation. It requires the external compiler at `{compiler["prefix"]}`.'
+                   f'This is a library-only installation. It requires the compiler at `{compiler.get("relative_prefix", compiler["prefix"])}`.'
                    if compiler['mode'] == 'external' else
                    f'This is a library-only installation. It requires host compilers `{compiler["cc"]}` and `{compiler["cxx"]}`.')
     atomic_write(builder.prefix / 'README.md', f"# {settings.get('name', 'Toolchain')}\n\n"
                  f"{len(complete)} components installed. Standard library: {builder.stdlib}.\n\n"
                  f"{requirement}\n\n"
+                 f"Sanitizer profile: {builder.sanitizer or 'none'}. Consumers must use matching instrumentation.\n\n"
                  "Source `activate` in bash/zsh; run `toolchain_deactivate` to restore your environment.\n\n"
                  "Use `share/toolchain/toolchain.cmake` with CMake. The Python builder is not needed to use "
                  "this installation. If installed, it can check the bundle with "
@@ -136,8 +154,13 @@ list(APPEND CMAKE_BUILD_RPATH "${{TOOLCHAIN_PREFIX}}/lib" "${{TOOLCHAIN_PREFIX}}
 
 
 def inventory(prefix: Path, kind: str = "all", pattern: str | None = None) -> list[dict]:
+    from .bundle import read_bundle
     if not prefix.is_dir():
         raise ToolchainError(f"Toolchain prefix does not exist: {prefix}")
+    bundle = read_bundle(prefix)
+    if bundle and kind in {'libs', 'bins', 'headers'}:
+        return [dict(item, path=f"{name}/{item['path']}") for name in bundle['variants']
+                if (prefix / name).is_dir() for item in inventory(prefix / name, kind, pattern)]
     roots = {"libs": [prefix / "lib", prefix / "lib64"], "bins": [prefix / "bin"],
              "headers": [prefix / "include"]}.get(kind, [prefix])
     entries = []
@@ -160,8 +183,14 @@ def inventory(prefix: Path, kind: str = "all", pattern: str | None = None) -> li
 
 
 def info(prefix: Path) -> dict:
+    from .bundle import read_bundle
     if not prefix.is_dir():
         raise ToolchainError(f"Toolchain prefix does not exist: {prefix}")
+    bundle = read_bundle(prefix)
+    if bundle:
+        return {'prefix': str(prefix), 'managed': True, 'bundle': bundle,
+                'variants': {name: info(prefix / name) if (prefix / name).is_dir() else {'status': 'pending'}
+                             for name in bundle['variants']}}
     manifest = read_json(prefix / "share/toolchain/manifest.json")
     result = {"prefix": str(prefix), "managed": bool(manifest), "manifest": manifest}
     legacy = prefix / "share/manifest.yaml"
@@ -189,9 +218,84 @@ def info(prefix: Path) -> dict:
     return result
 
 
+def protobuf_schema_smoke(prefix: Path, directory: Path, env: dict[str, str]) -> None:
+    schema = prefix / "include/buf/validate/validate.proto"
+    protoc = prefix / "bin/protoc"
+    if not schema.is_file():
+        raise ToolchainError(f"Protobuf consumer test: missing {schema}")
+    if not protoc.is_file():
+        raise ToolchainError(f"Protobuf consumer test: missing {protoc}")
+    source = directory / "consumer.proto"
+    source.write_text('''syntax = "proto3";
+package toolchain.smoke;
+import "buf/validate/validate.proto";
+message Request {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+}
+''')
+    command = [str(protoc), f"-I{directory}", f"-I{prefix / 'include'}",
+               f"--cpp_out={directory}", f"--descriptor_set_out={directory / 'consumer.pb'}",
+               "--include_imports", str(source)]
+    try:
+        result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ToolchainError(f"Protobuf consumer test could not run: {exc}") from exc
+    if result.returncode:
+        raise ToolchainError(f"Protobuf consumer test failed: {result.stderr[-4000:]}")
+    for name in ("consumer.pb.h", "consumer.pb.cc", "consumer.pb"):
+        if not (directory / name).is_file():
+            raise ToolchainError(f"Protobuf consumer test did not produce {name}")
+
+
+def protobuf_sanitizer_smoke(prefix: Path, directory: Path, compiler: Path,
+                             flags: list[str], env: dict[str, str]) -> None:
+    """Exercise header annotations across calls into the installed parser."""
+    source = directory / "protobuf-consumer"
+    source.mkdir()
+    (source / "main.cc").write_text('''#include <google/protobuf/descriptor.pb.h>
+#include <string>
+int main() {
+  google::protobuf::SourceCodeInfo_Location message;
+  message.mutable_path()->Reserve(8);
+  std::string wire;
+  for (int i = 0; i < 64; ++i) { wire.push_back(8); wire.push_back(i); }
+  if (!message.MergeFromString(wire) || message.path_size() != 64) return 2;
+  for (int i = 0; i < 64; ++i) if (message.path(i) != i) return 3;
+}
+''')
+    (source / "CMakeLists.txt").write_text('''cmake_minimum_required(VERSION 3.20)
+project(protobuf_sanitizer_consumer LANGUAGES CXX)
+find_package(Protobuf CONFIG REQUIRED)
+add_executable(consumer main.cc)
+target_link_libraries(consumer PRIVATE protobuf::libprotobuf)
+''')
+    cmake = compiler.parent / "cmake"
+    if not cmake.is_file():
+        raise ToolchainError(f"Protobuf sanitizer smoke test requires {cmake}")
+    build = source / "build"
+    commands = [[str(cmake), "-S", str(source), "-B", str(build),
+                 f"-DCMAKE_CXX_COMPILER={compiler}", f"-DCMAKE_PREFIX_PATH={prefix}",
+                 f"-DProtobuf_DIR={prefix}/lib/cmake/protobuf",
+                 f"-DCMAKE_CXX_FLAGS={shlex.join(flags)}", "-DCMAKE_BUILD_TYPE=Debug"],
+                [str(cmake), "--build", str(build), "--parallel", "2"], [str(build / "consumer")]]
+    env = env.copy()
+    env["ASAN_OPTIONS"] = env.get("ASAN_OPTIONS", "") + ":detect_container_overflow=1"
+    env["UBSAN_OPTIONS"] = env.get("UBSAN_OPTIONS", "") + ":halt_on_error=1"
+    for command in commands:
+        try:
+            result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=180)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ToolchainError(f"Protobuf sanitizer consumer could not run: {exc}") from exc
+        if result.returncode:
+            raise ToolchainError(f"Protobuf sanitizer consumer failed: {shlex.join(command)}\n"
+                                 + (result.stdout + result.stderr)[-6000:])
+
+
 def smoke(prefix: Path, stdlib: str = "libstdc++", compiler_prefix: Path | None = None) -> dict:
-    metadata = read_json(prefix / "share/toolchain/manifest.json", {}).get("toolchain", {}).get("compiler", {})
-    compiler_root = compiler_prefix or (Path(metadata['prefix']) if metadata.get('mode') == 'external' else prefix)
+    sdk = read_json(prefix / "share/toolchain/manifest.json", {}).get("toolchain", {})
+    metadata = sdk.get("compiler", {})
+    compiler_root = compiler_prefix or ((prefix / metadata['relative_prefix']).resolve() if metadata.get('relative_prefix') else
+                                       Path(metadata['prefix']) if metadata.get('mode') == 'external' else prefix)
     compiler = compiler_root / "bin/clang++"
     if not compiler.is_file():
         compiler = compiler_root / "bin/g++"
@@ -207,6 +311,7 @@ def smoke(prefix: Path, stdlib: str = "libstdc++", compiler_prefix: Path | None 
     roots = [prefix, compiler_root]
     env["LD_LIBRARY_PATH"] = ":".join(str(p / d) for p in roots for d in ("lib", "lib64")) + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
     flags = ["-std=c++20", "-pthread", "-isystem", str(prefix / "include")]
+    flags += sanitizer_flags(sdk.get("sanitizer"))
     if compiler.name == "clang++":
         if stdlib == "libc++":
             flags += ["-stdlib=libc++"]
@@ -227,6 +332,7 @@ def smoke(prefix: Path, stdlib: str = "libstdc++", compiler_prefix: Path | None 
             if "SPDLOG_FMT_EXTERNAL" in targets.read_text():
                 flags += ["-DSPDLOG_FMT_EXTERNAL"]
                 break
+    proto_imports = []
     with tempfile.TemporaryDirectory(prefix="toolchain-smoke-") as temporary:
         directory = Path(temporary)
         source, binary = directory / "smoke.cpp", directory / "smoke"
@@ -239,14 +345,43 @@ def smoke(prefix: Path, stdlib: str = "libstdc++", compiler_prefix: Path | None 
                 raise ToolchainError(f"Smoke test could not run: {exc}") from exc
             if completed.returncode:
                 raise ToolchainError(f"Smoke test failed: {shlex.join(argv)}\n{completed.stderr[-4000:]}")
-    return {"passed": True, "compiler": str(compiler), "standard": "c++20", "libraries": libraries}
+        if any((prefix / f"include/buf/validate/{name}").exists() for name in ("validate.pb.h", "validate.proto")):
+            protobuf_schema_smoke(prefix, directory, env)
+            proto_imports.append("buf/validate/validate.proto")
+        if sdk.get("sanitizer") and (prefix / "lib/libprotobuf.a").is_file():
+            protobuf_sanitizer_smoke(prefix, directory, compiler, flags, env)
+    return {"passed": True, "compiler": str(compiler), "standard": "c++20", "libraries": libraries,
+            "proto_imports": proto_imports, "sanitizer": sdk.get("sanitizer")}
 
 
 def verify(prefix: Path, recipes: dict | None = None, run_smoke: bool = False,
            stdlib: str = "libstdc++", compiler_prefix: Path | None = None) -> dict:
     from .engine import artifacts_missing
+    from .bundle import PROFILES, read_bundle
     if not prefix.is_dir():
         raise ToolchainError(f"Toolchain prefix does not exist: {prefix}")
+    bundle = read_bundle(prefix)
+    if bundle:
+        results = {}
+        failures = []
+        for name in bundle['variants']:
+            expected = recipes if recipes is not None else bundle.get('recipes', {}).get(name)
+            if recipes is not None and name != 'standard':
+                expected = {n: r for n, r in recipes.items() if r.get('stage') != 'core'}
+            try:
+                result = verify(prefix / name, expected, run_smoke, bundle.get('stdlib', stdlib))
+                sdk = read_json(prefix / name / 'share/toolchain/manifest.json', {}).get('toolchain', {})
+                if not sdk or sdk.get('sanitizer') != PROFILES[name]:
+                    result['failures'].append('Missing metadata or incorrect sanitizer profile')
+                if name != 'standard' and sdk.get('compiler', {}).get('relative_prefix') != '../standard':
+                    result['failures'].append('Variant must use the sibling standard compiler')
+                result['passed'] = not result['failures']
+            except ToolchainError as exc:
+                result = {'passed': False, 'failures': [str(exc)], 'components_checked': 0}
+            results[name] = result
+            failures += [f'{name}: {message}' for message in result['failures']]
+        return {'prefix': str(prefix), 'passed': not failures, 'variants': results,
+                'components_checked': sum(r['components_checked'] for r in results.values()), 'failures': failures}
     failures = []
     state = read_json(prefix / "share/toolchain/build-state.json")
     checks = recipes or ({n: e for n, e in state["recipes"].items()} if state else {})
@@ -257,6 +392,12 @@ def verify(prefix: Path, recipes: dict | None = None, run_smoke: bool = False,
         if state and name in state["recipes"] and state["recipes"][name].get("status") != "complete":
             failures.append(f"{name}: build status is {state['recipes'][name].get('status')}")
     failures += [f"Broken symlink: {item['path']} -> {item['target']}" for item in inventory(prefix) if item.get("broken")]
+    metadata = read_json(prefix / 'share/toolchain/manifest.json', {}).get('toolchain', {}).get('compiler', {})
+    if metadata.get('relative_prefix'):
+        compiler_root = (prefix / metadata['relative_prefix']).resolve()
+        for executable in (metadata.get('cc', 'clang'), metadata.get('cxx', 'clang++'), 'cmake'):
+            if not os.access(compiler_root / 'bin' / executable, os.X_OK):
+                failures.append(f'Missing sibling compiler tool: {compiler_root / "bin" / executable}')
     result = {"prefix": str(prefix), "passed": not failures, "components_checked": len(checks), "failures": failures}
     if run_smoke:
         try:
@@ -268,9 +409,18 @@ def verify(prefix: Path, recipes: dict | None = None, run_smoke: bool = False,
 
 
 def archive(prefix: Path, destination: Path, force: bool = False) -> dict:
+    from .bundle import read_bundle
     if not prefix.is_dir():
         raise ToolchainError(f"Prefix does not exist: {prefix}")
-    with exclusive_lock(prefix / "share/toolchain/.build.lock"):
+    metadata = read_json(prefix / 'share/toolchain/manifest.json', {}).get('toolchain', {}).get('compiler', {})
+    if metadata.get('relative_prefix'):
+        raise ToolchainError('Archive the whole bundle, not an individual sanitizer variant')
+    with contextlib.ExitStack() as locks:
+        locks.enter_context(exclusive_lock(prefix / 'share/toolchain/.build.lock'))
+        bundle = read_bundle(prefix)
+        if bundle:
+            for name in bundle['variants']:
+                locks.enter_context(exclusive_lock(prefix / name / 'share/toolchain/.build.lock'))
         return _archive(prefix, destination, force)
 
 

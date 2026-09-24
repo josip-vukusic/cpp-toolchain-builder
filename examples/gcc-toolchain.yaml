@@ -23,7 +23,7 @@ libraries:
       options:
         - --build=x86_64-linux-gnu
         - --host=x86_64-linux-gnu
-        - --enable-gold
+        - --disable-gold
         - --enable-plugins
         - --enable-deterministic-archives
         - --disable-shared

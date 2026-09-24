@@ -1,9 +1,9 @@
 # Standalone reproduction of the POC; no dependency on the old toolchain/ folder.
 schema_version: 1
 toolchain:
-  name: toolchain-v1
-  version: '1'
-  prefix: ./install/toolchain-v1
+  name: toolchain-v2
+  version: '2'
+  prefix: ./install/toolchain-v2
   work: .toolchain-work
   cache: .toolchain-cache
   output: output

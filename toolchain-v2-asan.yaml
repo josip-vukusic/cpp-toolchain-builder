@@ -1,0 +1,20 @@
+# Instrumented libraries using the validated release SDK's compiler and tools.
+# Reuse the release source lock; do not independently upgrade dependencies here.
+schema_version: 1
+toolchain:
+  name: toolchain-v2-asan
+  version: '2'
+  prefix: ./install/toolchain-v2-asan
+  work: .toolchain-work-asan
+  cache: .toolchain-cache
+  output: output
+  compiler: toolchain
+  compiler_prefix: /opt/toolchain-v2
+  sanitizer: asan-ubsan
+  lockfile: toolchain.lock.json
+  stdlib: libstdc++
+  jobs: 8
+  platform: linux-x86_64
+recipe_files:
+- builtin:poc
+libraries: []

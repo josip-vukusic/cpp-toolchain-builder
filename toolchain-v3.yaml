@@ -1,0 +1,18 @@
+# One version list and source lock; build the compiler once in standard/.
+schema_version: 1
+toolchain:
+  name: toolchain-v3
+  version: '3'
+  prefix: ./install/toolchain-v3
+  work: .toolchain-work-v3
+  cache: .toolchain-cache
+  output: output
+  variants: [standard, asan, tsan]
+  compiler: toolchain
+  lockfile: toolchain.lock.json
+  stdlib: libstdc++
+  jobs: 8
+  platform: linux-x86_64
+recipe_files:
+- builtin:poc
+libraries: []

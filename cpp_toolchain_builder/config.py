@@ -10,6 +10,7 @@ from typing import Any
 import yaml
 
 from .util import ToolchainError, atomic_write, inside
+from .sanitizers import SANITIZERS
 
 SYSTEMS = {"cmake", "autotools", "make", "copy", "header-only", "custom"}
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]*$")
@@ -83,7 +84,7 @@ def validate_recipe(recipe: dict) -> None:
         raise ToolchainError(f"Invalid recipe name: {name!r}")
     if not isinstance(recipe.get("version"), str) or not recipe["version"]:
         raise ToolchainError(f"{name}: version must be a nonempty quoted string")
-    unknown = set(recipe) - {"name", "version", "stage", "source", "depends_on", "build", "artifacts", "environment", "requires", "description"}
+    unknown = set(recipe) - {"name", "version", "stage", "source", "depends_on", "build", "artifacts", "environment", "requires", "description", "sanitizer_overrides"}
     if unknown:
         raise ToolchainError(f"{name}: unknown recipe fields: {', '.join(sorted(unknown))}")
     source = recipe.get("source")
@@ -116,6 +117,21 @@ def validate_recipe(recipe: dict) -> None:
     environment = recipe.get("environment", {})
     if not isinstance(environment, dict) or any(not isinstance(v, str) for v in environment.values()):
         raise ToolchainError(f"{name}: environment must map names to strings")
+    overrides = recipe.get("sanitizer_overrides", {})
+    if not isinstance(overrides, dict):
+        raise ToolchainError(f"{name}: sanitizer_overrides must map sanitizer profiles to flag mappings")
+    if overrides and recipe.get("stage", "library") != "library":
+        raise ToolchainError(f"{name}: sanitizer_overrides requires stage: library")
+    for profile, options in overrides.items():
+        label = f"{name}.sanitizer_overrides.{profile}"
+        if profile not in SANITIZERS:
+            raise ToolchainError(f"{label}: unknown sanitizer profile")
+        if not isinstance(options, dict) or set(options) - {"compile_flags", "link_flags"}:
+            raise ToolchainError(f"{label}: expected compile_flags and/or link_flags")
+        for field in ("compile_flags", "link_flags"):
+            strings(options.get(field, []), f"{label}.{field}")
+            if any(not flag.strip() for flag in options.get(field, [])):
+                raise ToolchainError(f"{label}.{field}: flags must not be empty")
     build = recipe.get("build", {})
     if not isinstance(build, dict) or build.get("system") not in SYSTEMS:
         raise ToolchainError(f"{name}: unsupported build.system; expected {', '.join(sorted(SYSTEMS))}")
@@ -204,9 +220,19 @@ def load_config(path: Path) -> Configuration:
         raise ToolchainError("toolchain.jobs must be a positive integer")
     if not NAME.fullmatch(str(settings.get("name", "toolchain"))):
         raise ToolchainError("Invalid toolchain.name")
-    for field in ("prefix", "work", "cache", "output", "bootstrap_prefix", "cc", "cxx"):
+    for field in ("prefix", "work", "cache", "output", "bootstrap_prefix", "cc", "cxx", "compiler_prefix", "lockfile"):
         if field in settings and not isinstance(settings[field], str):
             raise ToolchainError(f"toolchain.{field} must be a string")
+    if "sanitizer" in settings and (not isinstance(settings["sanitizer"], str) or settings["sanitizer"] not in SANITIZERS):
+        raise ToolchainError("toolchain.sanitizer must be asan-ubsan or tsan")
+    if "variants" in settings:
+        variants = settings["variants"]
+        strings(variants, "toolchain.variants")
+        if (not variants or variants[0] != "standard" or len(set(variants)) != len(variants)
+                or set(variants) - {"standard", "asan", "tsan"}):
+            raise ToolchainError("toolchain.variants must start with standard, followed by unique asan/tsan variants")
+        if settings.get("compiler") != "toolchain" or settings.get("compiler_prefix") or settings.get("sanitizer"):
+            raise ToolchainError("Bundle variants require compiler: toolchain and no compiler_prefix or sanitizer")
     recipes: dict[str, dict] = {}
     includes = data.get("recipe_files", [])
     strings(includes, "recipe_files")

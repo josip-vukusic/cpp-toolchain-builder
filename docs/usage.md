@@ -2,6 +2,10 @@
 
 Start with the [README quickstart](../README.md#quickstart). This page covers the larger preset, inspection, and custom recipes.
 
+For one build containing `standard`, `asan`, and `tsan` variants, use
+[`toolchain-v3.yaml`](../toolchain-v3.yaml). See [bundle commands](bundles.md) for
+building from scratch, resuming, packaging, and installing all three together.
+
 ## Install and build the POC toolchain
 
 ```sh
@@ -51,6 +55,43 @@ A prefix lock prevents simultaneous installations into the same toolchain.
 `--stdlib libc++` adds LLVM's libc++/libc++abi runtimes and selects libc++ for
 third-party C++ builds. Its complete build is a separate validation target.
 
+## Resume a build
+
+`toolchain build` already skips successful, unchanged recipes. `toolchain resume`
+also restores the build environment recorded in the installation's
+`share/toolchain/build-state.json`. This lets you resume from another terminal or
+virtual environment without a changed `PATH` triggering a compiler rebuild.
+
+```sh
+toolchain resume --locked --jobs 8 --quiet --archive
+# Equivalent spelling:
+toolchain build --resume --locked --jobs 8 --quiet --archive
+# Inspect the commands without downloads, builds, or state changes:
+toolchain resume --locked --dry-run
+```
+
+Pass the same configuration and location overrides as the original build, including
+`--config`, `--prefix`, `--work`, `--compiler-prefix`, `--stdlib`, and `--lockfile`
+where applicable. Keep the same `--locked` setting; omit it if the original build
+was unlocked. You can change `--jobs`, `--quiet`, or select a component with
+`--library NAME`. Packaging is optional; omit `--archive` if an archive already exists.
+
+The saved values are `PATH`, `CC`, `CXX`, `CFLAGS`, `CXXFLAGS`, `CPPFLAGS`, `LDFLAGS`,
+`CMAKE_PREFIX_PATH`, `PKG_CONFIG_PATH`, and `LD_LIBRARY_PATH`. Other environment
+variables come from the current shell. Recipe-specific environment settings still
+apply. Ordinary `build` uses the current environment; `resume` uses these recorded
+values and rejects changes to completed recipes, sources, dependencies, or build
+settings instead of silently rebuilding them. Use ordinary `build` for intentional
+changes. Failed or interrupted recipes are retried, and missing declared artifacts
+are rebuilt. `--force` cannot be combined with resume.
+
+Older installations have no saved environment. The CLI first checks the current
+environment, then tries the original `PATH` recorded in retained Autotools
+`config.log` files. It accepts a recovered environment only when every selected
+completed recipe's fingerprint matches. If that cannot be verified, use the
+original shell and options, or ordinary `build`. A successful resume saves the
+environment for subsequent runs. No project-specific resume script is needed.
+
 ## Inspect and use a toolchain
 
 ```sh
@@ -75,7 +116,13 @@ Use `--json` on plan, status, doctor, recipe, inspection, build, and archive com
 for structured output. `inspect verify` and unsuccessful `inspect find` return a
 nonzero exit code. Verification checks declared files and broken symlinks; it does
 not prove every exported API or transitive ABI is correct. `--smoke` checks the C++20
-runtime and links fmt/spdlog when present.
+runtime and links fmt/spdlog when present. When Protovalidate is installed, it also
+uses the SDK's `protoc` to generate C++ and descriptors for a consumer importing
+`buf/validate/validate.proto`.
+
+For applications using ASan/UBSan or TSan, build matching dependencies in a separate
+prefix with `--sanitizer`. See [sanitizer library builds](sanitizers.md) for commands,
+consumer setup, and the Protobuf regression smoke check.
 
 An installation records build status and source provenance in
 `share/toolchain/manifest.json`, a readable `share/manifest.yaml`, a CycloneDX

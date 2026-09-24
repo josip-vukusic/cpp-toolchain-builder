@@ -18,8 +18,10 @@ import yaml
 from . import __version__
 from .config import SYSTEMS, load_config, read_yaml, save_yaml, validate_recipe
 from .engine import Builder
+from .bundle import Bundle, read_bundle
 from .hooks import HOOKS
 from .inspection import archive, info, inventory, verify
+from .sanitizers import SANITIZERS
 from .util import ToolchainError, read_json
 
 UBUNTU_PACKAGES = ['build-essential', 'git', 'curl', 'wget', 'bison', 'flex', 'texinfo', 'autoconf', 'automake',
@@ -33,8 +35,12 @@ def output(data, as_json=False):
 
 
 def make_builder(args, config=None):
-    return Builder(config or load_config(Path(args.config)), **{key: getattr(args, key, None) for key in
-                   ('prefix', 'work', 'cache', 'jobs', 'stdlib', 'compiler_prefix', 'offline', 'quiet', 'locked', 'lockfile')})
+    config = config or load_config(Path(args.config))
+    factory = Bundle if 'variants' in config.settings else Builder
+    return factory(config,
+                   resume=getattr(args, 'resume', False) or getattr(args, 'command', None) == 'resume',
+                   **{key: getattr(args, key, None) for key in
+                   ('prefix', 'work', 'cache', 'jobs', 'stdlib', 'compiler_prefix', 'offline', 'quiet', 'locked', 'lockfile', 'sanitizer')})
 
 
 def doctor(builder, requested=None):
@@ -95,10 +101,16 @@ def doctor(builder, requested=None):
 
 def show_plan(builder, requested, as_json):
     plan = builder.plan(requested)
+    if isinstance(builder, Bundle):
+        output({'prefix': str(builder.prefix), 'variants': plan}, as_json)
+        return 0
     if as_json:
-        output({'prefix': str(builder.prefix), 'jobs': builder.jobs, 'stdlib': builder.stdlib, 'plan': plan}, True)
+        output({'prefix': str(builder.prefix), 'jobs': builder.jobs, 'stdlib': builder.stdlib,
+                'sanitizer': builder.sanitizer, 'plan': plan}, True)
     else:
         print(f'Prefix: {builder.prefix}\nJobs: {builder.jobs}; standard library: {builder.stdlib}\n')
+        if builder.sanitizer:
+            print(f'Sanitizer profile: {builder.sanitizer}\n')
         for i, item in enumerate(plan, 1):
             print(f"{i:2}. {item['name']} {item['version']} ({item['system']})")
             for command in item['commands']:
@@ -108,7 +120,25 @@ def show_plan(builder, requested, as_json):
 
 
 def cmd_build(args):
+    if (args.resume or args.command == 'resume') and args.force:
+        raise ToolchainError('--force cannot be combined with resume; use toolchain build --force')
     builder = make_builder(args)
+    if isinstance(builder, Bundle):
+        if args.library:
+            raise ToolchainError('Bundle builds select complete variants; omit --library')
+        if args.dry_run:
+            return show_plan(builder, None, args.json)
+        def preflight(child):
+            health = doctor(child)
+            if not health['passed']:
+                raise ToolchainError('Bundle preflight failed: ' + '; '.join(health['problems']))
+        result = builder.build(force=args.force, preflight=None if args.skip_doctor else preflight)
+        if args.archive:
+            destination = builder.config.location('output', None, 'output') / f'{builder.prefix.name}-{platform.machine()}.tar.gz'
+            result['distribution'] = archive(builder.prefix, destination, args.force)
+        output(result, args.json)
+        return 0
+    builder.prepare_resume(args.library)
     if args.dry_run:
         return show_plan(builder, args.library, args.json)
     if not args.skip_doctor:
@@ -127,6 +157,8 @@ def cmd_build(args):
 
 def cmd_test(args):
     config = load_config(Path(args.config))
+    if 'variants' in config.settings:
+        raise ToolchainError('Single-recipe test requires a configuration without toolchain.variants')
     if args.dry_run:
         args.prefix = str(config.path.parent / '.test-preview/prefix')
         args.work = str(config.path.parent / '.test-preview/work')
@@ -219,18 +251,27 @@ def cmd_add(args):
 
 
 def cmd_inspect(args):
-    prefix = Path(args.prefix or os.environ.get('TOOLCHAIN_PREFIX', '/opt/toolchain-v1')).expanduser().resolve()
+    config = load_config(Path(args.config)) if args.config else None
+    prefix = (config.location('prefix', args.prefix, './install') if config else
+              Path(args.prefix or os.environ.get('TOOLCHAIN_PREFIX', '/opt/toolchain-v1')).expanduser().resolve())
     if args.action == 'info':
         output(info(prefix), args.json)
     elif args.action == 'verify':
-        config = load_config(Path(args.config)) if args.config else None
+        expected = config.recipes if config else None
+        if config and (args.compiler_prefix or config.settings.get('compiler_prefix')):
+            expected = {name: recipe for name, recipe in config.recipes.items() if recipe.get('stage') != 'core'}
         stdlib = args.stdlib or (config.settings.get('stdlib', 'libstdc++') if config else
                                 read_json(prefix / 'share/toolchain/manifest.json', {}).get('toolchain', {}).get('stdlib', 'libstdc++'))
-        result = verify(prefix, config.recipes if config else None, args.smoke, stdlib,
+        result = verify(prefix, expected, args.smoke, stdlib,
                         Path(args.compiler_prefix).resolve() if args.compiler_prefix else None)
         output(result, args.json)
         return 0 if result['passed'] else 1
     elif args.action == 'components':
+        bundle = read_bundle(prefix)
+        if bundle:
+            output({name: read_json(prefix / name / 'share/toolchain/manifest.json', {}).get('components', [])
+                    for name in bundle['variants']}, args.json)
+            return 0
         manifest = read_json(prefix / 'share/toolchain/manifest.json')
         if not manifest:
             raise ToolchainError(f'No managed manifest in {prefix}; use inspect info for a legacy installation')
@@ -271,15 +312,18 @@ def parser():
             command.add_argument('--' + option)
         command.add_argument('--jobs', '-j', type=positive)
         command.add_argument('--stdlib', choices=['libstdc++', 'libc++'])
+        command.add_argument('--sanitizer', choices=list(SANITIZERS),
+                             help='Build instrumented libraries in a separate prefix using --compiler-prefix')
         command.add_argument('--offline', action='store_true', help='Use cached top-level sources; upstream build downloads are separate')
         command.add_argument('--locked', action='store_true', help='Require the source identities recorded in the lockfile')
         command.add_argument('--quiet', action='store_true', help='Keep compiler output in logs')
         if selection:
             command.add_argument('--library', action='append', help='Build this recipe and dependencies; repeatable')
 
-    build = sub.add_parser('build', help='Build selected recipes with automatic resume')
+    build = sub.add_parser('build', aliases=['resume'], help='Build recipes; resume restores the saved build environment')
     build_options(build)
     build.add_argument('--dry-run', action='store_true', help='Print commands without writing files or downloading')
+    build.add_argument('--resume', action='store_true', help='Restore saved build environment and require completed recipes to be unchanged')
     build.add_argument('--force', action='store_true', help='Rerun all selected recipes and dependencies')
     build.add_argument('--skip-doctor', action='store_true', help='Skip host dependency checks')
     build.add_argument('--archive', action='store_true', help='Package after a successful build')
@@ -293,7 +337,11 @@ def parser():
     health = sub.add_parser('doctor', help='Check host dependencies, platform, and permissions')
     build_options(health)
     def cmd_doctor(a):
-        report = doctor(make_builder(a), a.library)
+        builder = make_builder(a)
+        report = doctor(builder.builders['standard'] if isinstance(builder, Bundle) else builder, a.library)
+        if isinstance(builder, Bundle):
+            report['variants'] = builder.variants
+            report['notes'].append('Sanitizer prerequisites are checked after standard supplies the compiler.')
         output(report, a.json)
         return 0 if report['passed'] else 1
     health.set_defaults(func=cmd_doctor)
@@ -342,6 +390,19 @@ def parser():
     build_options(status)
     def cmd_status(a):
         builder = make_builder(a)
+        if isinstance(builder, Bundle):
+            result = {}
+            for name, plan in builder.plan(a.library).items():
+                result[name] = []
+                for item in plan:
+                    entry = builder.builders[name].state['recipes'].get(item['name'], {})
+                    state = entry.get('status', 'pending')
+                    if state == 'complete' and entry.get('fingerprint') != item['fingerprint']:
+                        state = 'outdated'
+                    result[name].append({'name': item['name'], 'version': item['version'],
+                                         'status': state, 'log': entry.get('log')})
+            output(result, a.json)
+            return 0
         result = []
         for item in builder.plan(a.library):
             entry = builder.state['recipes'].get(item['name'], {})

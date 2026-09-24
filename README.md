@@ -21,6 +21,17 @@ and build tools with the [GCC SDK example](docs/gcc-toolchain.md).
 [Custom library example](#example-add-a-new-xy-lib-library) ·
 [Validation](docs/validation.md)
 
+To build normal, ASan/UBSan, and TSan SDKs together with one shared compiler,
+use [`toolchain-v3.yaml`](toolchain-v3.yaml):
+
+```bash
+toolchain build --config toolchain-v3.yaml --locked --jobs 8 --quiet &&
+toolchain inspect verify --config toolchain-v3.yaml --smoke
+```
+
+This creates `install/toolchain-v3/{standard,asan,tsan}` using one recipe collection
+and source lock. See [bundle builds, resume, and installation](docs/bundles.md).
+
 ## See it in action
 
 [![Terminal recording: copy a GCC SDK, activate its bundled compiler and build tools, then compile and run a C++ application.](docs/media/gcc-use.gif)](docs/gcc-demo.md)
@@ -154,7 +165,21 @@ and prints installation hints; it does not modify system packages. The checked-i
 lockfile pins top-level sources. Omit `--locked` when intentionally creating or
 updating your own source lock, and retain the resulting file.
 
-Repeat the same build command to resume. Inspect progress with `toolchain status`;
+Repeat the same build command to resume in the same environment. To continue from
+another shell while restoring the saved build environment, use:
+
+```bash
+toolchain resume --locked --jobs 8 --quiet --archive
+# Preview without starting compilation:
+toolchain resume --locked --dry-run
+```
+
+`toolchain build --resume` is equivalent. Keep the original configuration, paths,
+standard-library choice, and `--locked` setting. Resume verifies completed recipes
+before reusing them; use ordinary `toolchain build` when intentionally changing
+the stack. See [resume behavior](docs/usage.md#resume-a-build) for older build states.
+
+Inspect progress with `toolchain status`;
 compiler logs are under `.toolchain-work/logs/`. Use `--library NAME` to select a
 component and its dependencies, or `--stdlib libc++` to select the separate libc++
 variant, which still needs full-build validation.
@@ -231,9 +256,11 @@ source ./install/my-sdk/activate
 ```
 
 `validate` checks the recipe definition; `plan` previews commands without building.
+For ASan/UBSan and TSan applications, see [sanitizer library builds](docs/sanitizers.md).
 `test` performs a real build and checks the declared artifacts. Successful temporary
 tests are removed unless you pass `--keep`; failed tests retain their files and
-logs. The generic `--smoke` check exercises C++20 and fmt/spdlog when present. For
+logs. The generic `--smoke` check exercises C++20 and fmt/spdlog when present, and
+checks schema imports with the SDK's `protoc` when Protovalidate is installed. For
 another library, also compile and run a small application that uses its API.
 
 Once the recipe works, run `toolchain fetch --config my-toolchain.yaml` and keep
